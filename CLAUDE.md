@@ -31,4 +31,4 @@
 
 ## 当前阶段
 
-M0–M4 已完成，标准版功能已实现并通过本机验收（`pytest`、`npm run build`、`npm run lint`、设计检查、浏览器端到端）。当前在集成分支 `dev`，最终合并回 `master`。后续工作先读 `docs/ROADMAP.md` 的“当前焦点”和 `docs/DEVLOG.md` 的最新记录。
+M0–M4 已完成，标准版功能已实现并通过本机验收（`pytest`、`npm run build`、`npm run lint`、设计检查、浏览器端到端）。已从集成分支 `dev` 合并入 `master`。后续工作先读 `docs/ROADMAP.md` 的“当前焦点”和 `docs/DEVLOG.md` 的最新记录。
