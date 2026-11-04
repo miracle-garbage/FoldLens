@@ -8,6 +8,7 @@
 ## 当前状态
 
 - **阶段**：M0–M4 完成；标准版功能实现并通过本机验收
+- **发布标签**：`alpha`（标准版首个可演示版本）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
 - **分支**：`dev` 已合并入 `master`（实现 `6eef7ce`，merge `a7b7078`）
 - **最后验证**：2026-11-05（pytest 22、ruff、build、lint、设计检查、浏览器端到端 34/34、离线/i18n/reduced-motion 13/13、键盘/PNG/上传 4/4）
