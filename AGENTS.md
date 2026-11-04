@@ -38,10 +38,11 @@ git log --oneline -5
 
 ## 2. 当前状态快照
 
-- 日期：2026-11-04
-- 阶段：**M0 已完成**（规划、文档、环境验证）；**业务代码尚未开始**。
+- 日期：2026-11-05
+- 阶段：**M0–M4 完成**；标准版功能已实现并通过本机验收。
 - 已确认：范围=标准版；视觉=暖白纸面 + 深色观察窗；语言=中英切换（默认中文）；技术栈见上。
-- 下一步：等待用户明确说“开始 M1”后，初始化 `frontend/`、`backend/`、`data/`、`scripts/`。
+- 当前分支：`dev`（集成分支）；完成验收后合并回 `master`。
+- 下一步：维护与演示；若继续开发，先读 `docs/ROADMAP.md` 的“Post-M4 已知限制”。
 - 权威进度以 `docs/ROADMAP.md` 和 `docs/DEVLOG.md` 为准；本节只是快照，若与二者冲突，以二者为准。
 
 ---
@@ -85,7 +86,7 @@ git log --oneline -5
 
 ---
 
-## 5. 常用命令（M1 脚手架完成后生效）
+## 5. 常用命令
 
 ```bash
 # 一次性安装
@@ -112,7 +113,8 @@ CHROME_PATH="$HOME/.cache/ms-playwright/chromium-1169/chrome-linux/chrome" \
   http://localhost:5173 --app --out .taste-skill/inspect
 ```
 
-> 在 M1 完成前，上述命令中的 `frontend/`、`backend/`、`scripts/` 尚不存在。
+> 设计检查默认优先使用生产预览（`npm run build && npm run preview -- --port 4173`）。
+> `design-check.sh` 中的 `--allow` 列表只包含与 `DESIGN.md` 明确冲突的通用规则（纸面色、等宽数据字体、hairline、三套字体、无视频等），理由记录在 `docs/DEVLOG.md`；不要用它掩盖新的真实问题。
 
 ---
 
@@ -211,7 +213,7 @@ CHROME_PATH="$HOME/.cache/ms-playwright/chromium-1169/chrome-linux/chrome" \
 2. 先读 `PRODUCT.md`、`DESIGN.md`，再读 `docs/PROJECT.md` 的交互规格。
 3. 任何 UI 编辑前，按 skill 要求读 `reference/craft-floor.md`。
 4. 构建后用设计检查器在 1440 / 768 / 390 三档截图；app 页面加 `--app`。
-5. 打开截图逐张检查，不只看代码；修复所有 `FAIL`，对每个 `WARN` 给出理由。
+5. 打开截图逐张检查，不只看代码；修复所有 `FAIL`，对每个 `WARN` 给出理由。与 `DESIGN.md` 冲突的通用规则通过脚本里的 `--allow` 显式声明，不静默忽略。
 6. 设计 token 有变化时，同步更新 `DESIGN.md`。
 
 **视觉底线**：暖白纸面 + 深色观察窗；朱红只做强调；无渐变、无玻璃、无 emoji 图标、无通用 SaaS 仪表盘。

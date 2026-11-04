@@ -94,9 +94,8 @@ components:
     padding: "2px 6px"
 ---
 
-> **状态：Seed v0.1（2026-11-04）**
-> 这是实现前根据已确认方向写下的设计系统种子。M1–M3 期间允许在保持世界与 token 语义的前提下细化；
-> M4 完成后由 `impeccable document` 扫描真实代码，把本文件升级为与实现一致的正式版本。
+> **状态：v1.0（2026-11-05，与实现同步）**
+> 本文件由实现前的 Seed v0.1 升级而来；token 与世界未改变，只补充了实现中的具体选择。
 > **Token 是规范；正文解释如何应用。**
 
 ## Overview
@@ -152,7 +151,7 @@ FoldLens 的世界是**科学标本台（Specimen Bench）**：暖白纸面般�
 
 字号阶梯：
 
-- Display XL：`clamp(2.5rem, 4vw, 4rem)` / 1.05（仅首页主标题）
+- Display XL：`clamp(2.5rem, 4vw, 4rem)` / 1.05（仅首页主标题；<640px 用 Display L 2.25rem，保证两行内排完）
 - Display L：`2.25rem` / 1.1（样例详情标题）
 - Display M：`1.5rem` / 1.2（面板标题）
 - Body L：`1.0625rem` / 1.6（导语）
@@ -235,7 +234,7 @@ FoldLens 的世界是**科学标本台（Specimen Bench）**：暖白纸面般�
 
 ### Sample Card
 
-- 结构缩略图在上（16:10，深色底，图片 `object-fit: contain`），信息在下。
+- 结构缩略图在上（16:10，`surface` 底，图片 `object-fit: contain`）。RCSB 官方缩略图自带浅色背景，因此缩略图区不使用深色底；深色观察窗只属于工作台 3D 视图。信息在下。
 - 信息层级：PDB ID（mono，12px，muted）→ 名称（display，20px）→ 一句说明（body S）→ 指标行（链数 / 残基数 / 分辨率）。
 - hover：边框变 `ink`，缩略图轻微放大 1.02（`prefers-reduced-motion` 下取消）。
 - 整卡可点击；键盘 focus 有 2px `accent` 外框。
@@ -269,7 +268,7 @@ FoldLens 的世界是**科学标本台（Specimen Bench）**：暖白纸面般�
 ### Motion
 
 - 时长 180ms（hover/focus）/ 240ms（面板切换）；缓动 `cubic-bezier(0.2, 0.7, 0.2, 1)`。
-- 允许：残基高亮淡入、面板切换淡入 + 4px 位移、观察窗 resize。
+- 允许：首屏与样例卡 240ms 淡入 + 4px 位移、残基高亮淡入、面板切换淡入 + 4px 位移、观察窗 resize。
 - 禁止：视差、连续旋转、自动播放的装饰动画。
 - `prefers-reduced-motion: reduce` 时全部时长设为 0，保留状态变化。
 

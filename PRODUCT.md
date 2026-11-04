@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React 19 + TypeScript 7 + Vite 8（前端）；FastAPI + Biotite 2（本地 Python 服务）。
+React 19 + TypeScript 6.0.3 + Vite 8（前端）；FastAPI + Biotite 2（本地 Python 服务）。
 
 ## Users
 
@@ -54,7 +54,7 @@ FoldLens 是一个本地运行的蛋白质结构探索器。用户输入 PDB ID 
 - 残基详情：序号、三字母名、φ/ψ、二级结构、B-factor、疏水性。
 - 结构档案：实验方法、分辨率、R-free、链数、原子数、配体列表、缺失残基。
 - 导出：3D 截图 PNG、分析数据 CSV。
-- URL 状态：`?pdb=1CRN&chain=A&res=45`。
+- URL 状态：`/entry/1CRN?chain=A&res=45&scheme=ss&repr=cartoon`。
 - 中英切换；首选中文。
 
 ### 技术约束

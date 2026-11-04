@@ -1,0 +1,80 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. The single source of truth is DESIGN.md; every colour used by
+ * a component must be registered here (or in features/structure/colors.ts for
+ * 3D/canvas needs).
+ */
+@theme {
+  --color-paper: #f2efe7;
+  --color-surface: #faf8f3;
+  --color-ink: #1a1917;
+  --color-muted: #6b675f;
+  --color-line: #d8d2c4;
+  --color-accent: #d9482b;
+  --color-accent-ink: #b83a22;
+  --color-teal: #2a7f7a;
+  --color-teal-ink: #226b66;
+  --color-viewport: #0c0f14;
+  --color-viewport-grid: #1d232c;
+  --color-helix: #e0523b;
+  --color-strand: #3e9b94;
+  --color-coil: #9a958b;
+  --color-warning: #b7791f;
+  --color-warning-ink: #8a5a12;
+  --color-danger: #b42318;
+  --color-success: #2f7d5b;
+  --color-success-ink: #256b4c;
+
+  --font-display:
+    'Fraunces Variable', 'Noto Serif CJK SC', 'Songti SC', Georgia, serif;
+  --font-body:
+    'Instrument Sans Variable', 'Noto Sans CJK SC', 'PingFang SC',
+    system-ui, sans-serif;
+  --font-mono:
+    'IBM Plex Mono', 'Noto Sans Mono CJK SC', 'SFMono-Regular', monospace;
+
+  --text-display-xl: clamp(2.5rem, 4vw, 4rem);
+  --text-display-xl--line-height: 1.05;
+  --text-display-xl--letter-spacing: -0.02em;
+  --text-display-l: 2.25rem;
+  --text-display-l--line-height: 1.1;
+  --text-display-m: 1.5rem;
+  --text-display-m--line-height: 1.2;
+  --text-body-l: 1.0625rem;
+  --text-body-l--line-height: 1.6;
+  --text-body-s: 0.875rem;
+  --text-body-s--line-height: 1.5;
+  --text-mono-s: 0.75rem;
+  --text-mono-s--line-height: 1.4;
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --ease-instrument: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --animate-panel-in: panel-in 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  --animate-breathe: breathe 1.2s ease-in-out infinite;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
