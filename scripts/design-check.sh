@@ -10,6 +10,9 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHROME_PATH="${CHROME_PATH:-$HOME/.cache/ms-playwright/chromium-1169/chrome-linux/chrome}"
+
+# shellcheck source=node-env.sh
+source "$ROOT/scripts/node-env.sh" || exit 1
 INSPECT_SCRIPT="$ROOT/.claude/skills/design-taste-frontend/scripts/inspect.mjs"
 OUT_DIR="$ROOT/.taste-skill/inspect"
 

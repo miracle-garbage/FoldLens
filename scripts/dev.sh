@@ -6,6 +6,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_PID=""
 FRONTEND_PID=""
 
+# Vite 8 needs Node ^20.19 / >=22.12; interactive shells may default to Node 18.
+# shellcheck source=node-env.sh
+source "$ROOT/scripts/node-env.sh" || exit 1
+echo "Node $(node -v) — $(command -v node)"
+
 cleanup() {
   trap - EXIT INT TERM
   if [[ -n "$BACKEND_PID" ]]; then

@@ -11,6 +11,7 @@
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
 - **分支**：`dev` 已合并入 `master`（实现 `6eef7ce`，merge `a7b7078`）
 - **最后验证**：2026-11-05（pytest 22、ruff、build、lint、设计检查、浏览器端到端 34/34、离线/i18n/reduced-motion 13/13、键盘/PNG/上传 4/4）
+- **最后修复**：2026-11-05 02:10（`dev.sh` 在系统 Node 18 下的启动失败；新增 Node 自动解析）
 - **最后文档更正**：2026-11-05（课程归属：本项目为生物信息学课程设计，与医学人工智能无关）
 - **下一步**：按 `docs/DEMO.md` 做答辩演示；后续维护从 `master` 开始
 - **阻塞**：无
@@ -35,9 +36,47 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-05 | Claude Code (deepseek-flash[1m]) | 修复 dev.sh 在系统 Node 18 下的启动失败 | `master`（见最新提交） |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-05 02:10 · Claude Code (deepseek-flash[1m]) · 修复 dev.sh 的 Node 版本解析
+
+### 目标
+
+用户手动运行 `./scripts/dev.sh` 时报：
+
+```text
+import { styleText } from "node:util";
+SyntaxError: The requested module 'node:util' does not provide an export named 'styleText'
+Node.js v18.19.1
+```
+
+### 根因
+
+交互式 shell 的 PATH 先解析到 `/usr/bin/node` v18；工具环境中的 nvm Node 26 未被加载。Vite 8 要求 `^20.19.0 || >=22.12.0`，Node 18 不兼容。
+
+### 修复
+
+- 新增 `scripts/node-env.sh`：按 `FOLDLENS_NODE` → 当前 `node` → nvm/fnm/volta 的顺序寻找兼容版本，并把其 `bin` 放到 PATH 前面；找不到时给出明确错误与要求版本。
+- `setup.sh`、`dev.sh`、`design-check.sh` 启动时自动 source；`dev.sh` 会打印实际使用的 Node 版本。
+- 新增 `.nvmrc`（`26.13.0`）。
+- `docs/ENVIRONMENT.md` 增加 Q0 与路径说明；README 快速开始补充提示。
+
+### 验证
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 受限 PATH 下解析 | `env PATH="/usr/bin:/bin" bash -c 'source scripts/node-env.sh; node -v'` | `v26.13.0`，npm 11.20.0 |
+| 受限 PATH 下启动 | `env PATH="/usr/bin:/bin" ./scripts/dev.sh` | 日志 `Node v26.13.0 — .../v26.13.0/bin/node`；`/api/health` 200，前端 5173 返回 200 |
+| 收尾 | 杀进程后检查端口 | 5173/8000 均已关闭 |
+
+### 下一步
+
+由用户手动测试全部功能。
 
 ---
 

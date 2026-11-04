@@ -166,6 +166,7 @@ cd frontend && npm run build && npm run lint
 ```
 
 > 六个样例与缩略图随仓库打包；首次打开非样例条目时才需要联网访问 RCSB。
+> 脚本会自动选择符合 Vite 8 要求的 Node（`^20.19.0 || >=22.12.0`）；手动运行 `npm` 前先 `nvm use`（项目根有 `.nvmrc`）。
 
 ---
 

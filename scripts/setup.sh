@@ -6,6 +6,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UV_BIN="${UV_BIN:-$HOME/.local/bin/uv}"
 
+# Vite 8 needs Node ^20.19 / >=22.12; interactive shells may default to Node 18.
+# shellcheck source=node-env.sh
+source "$ROOT/scripts/node-env.sh" || exit 1
+
 if [[ ! -x "$UV_BIN" ]]; then
   echo "uv not found at $UV_BIN" >&2
   echo "Install it with: UV_NO_MODIFY_PATH=1 curl -LsSf https://astral.sh/uv/install.sh | sh" >&2

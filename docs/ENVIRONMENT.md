@@ -13,7 +13,7 @@
 | 组件 | 版本 | 备注 |
 |---|---|---|
 | OS | Linux Mint 22.3 (Zena) / x86_64 | Ubuntu 24.04 系 |
-| Node.js | 26.13.0 | 满足 Vite 8 |
+| Node.js | 26.13.0 | Vite 8 要求 `^20.19.0 || >=22.12.0`；交互式 shell 可能先解析到 `/usr/bin/node` v18，脚本会自动选择兼容版本 |
 | npm | 11.20.0 | 默认包管理器 |
 | pnpm | 12.17.0 | 可选 |
 | Python | 3.12.3 | 系统解释器 |
@@ -28,9 +28,12 @@
 
 ```text
 uv:        /home/fox/.local/bin/uv
+Node:      /home/fox/.nvm/versions/node/v26.13.0/bin/node
 Chromium:  /home/fox/.cache/ms-playwright/chromium-1169/chrome-linux/chrome
 项目根:    /home/fox/Code/projects/fzu/生物信息学and医学人工智能课设项目/FoldLens
 ```
+
+`scripts/node-env.sh` 会按以下顺序选择 Node：`FOLDLENS_NODE` → 当前 `node` → nvm / fnm / volta 中满足 Vite 8 要求的版本。`setup.sh`、`dev.sh`、`design-check.sh` 都会自动 source 它；项目根也有 `.nvmrc`（`26.13.0`）供 `nvm use` 使用。
 
 > 说明：父目录名“生物信息学and医学人工智能课设项目”只是课程项目的总目录；FoldLens 本身是生物信息学课程设计，与医学人工智能无关。
 >
@@ -278,6 +281,14 @@ npm install --registry=https://registry.npmmirror.com
 ---
 
 ## 8. 常见问题
+
+### Q0: `dev.sh` 报 `styleText` / `SyntaxError`，Node 版本是 18
+
+Vite 8 需要 `^20.19.0 || >=22.12.0`。交互式 shell 可能没有加载 nvm，先解析到 `/usr/bin/node` v18。
+
+- 直接运行 `./scripts/dev.sh` 即可：它会调用 `scripts/node-env.sh` 自动选择兼容 Node，并打印实际版本。
+- 手动运行 `npm run dev` 前，先执行 `nvm use`（项目根有 `.nvmrc`）或 `export FOLDLENS_NODE=/home/fox/.nvm/versions/node/v26.13.0/bin/node`。
+- 若脚本找不到兼容 Node，会明确报错并给出要求版本。
 
 ### Q1: `uv: command not found`
 
