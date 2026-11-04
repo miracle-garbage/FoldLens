@@ -1,0 +1,40 @@
+[project]
+name = "foldlens-backend"
+version = "0.1.0"
+description = "Local structure-analysis service for FoldLens"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.162.0,<0.163",
+    "uvicorn[standard]>=0.54.0,<0.55",
+    "biotite>=2.0.0,<2.1",
+    "numpy>=2.0,<3",
+    "httpx>=0.28.1,<0.29",
+    "python-multipart>=0.0.20",
+    "pydantic-settings>=2.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

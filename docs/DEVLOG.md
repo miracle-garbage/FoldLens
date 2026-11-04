@@ -7,15 +7,16 @@
 
 ## 当前状态
 
-- **阶段**：M0 已完成（规划 / 文档 / 环境验证）
-- **代码**：业务代码尚未开始；`frontend/`、`backend/`、`data/`、`scripts/` 不存在
-- **最后验证**：2026-11-04（环境与依赖）
+- **阶段**：M0–M4 完成；标准版功能实现并通过本机验收
+- **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
+- **分支**：集成分支 `dev`（完成后合并 `master`）
+- **最后验证**：2026-11-05（pytest 22、ruff、build、lint、设计检查、浏览器端到端 34/34、离线/i18n/reduced-motion 13/13、键盘/PNG/上传 4/4）
 - **最后文档更正**：2026-11-05（课程归属：本项目为生物信息学课程设计，与医学人工智能无关）
-- **文档基线提交**：`93fc80c`（`master`）
-- **下一步**：等待用户明确说“开始 M1”，然后按 `docs/ROADMAP.md` 的 M1 任务执行
+- **下一步**：合并 `dev` → `master`；按 `docs/DEMO.md` 做答辩演示
 - **阻塞**：无
 - **待用户决定**：
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
+  - 是否保留本机 statusline 辅助脚本（不影响项目仓库）
 
 ---
 
@@ -34,8 +35,77 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `dev` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-05 01:07 · Claude Code (deepseek-flash[1m]) · 实现标准版 M1–M4
+
+### 目标
+
+按 `docs/PROJECT.md` 的标准版范围完成 FoldLens：脚手架、后端管线、四视图联动、图表、档案、导出、i18n、上传、离线演示与文档验收。
+
+### 完成内容
+
+**后端**
+
+- FastAPI：health / samples / entries / structure / thumbnails / uploads；统一错误封套。
+- Biotite 2.0：mmCIF 与 PDB 解析（model 1、作者编号）、P-SEA、φ/ψ、B-factor、Kyte–Doolittle、CA 接触（8 Å、|i−j|≥3）、配体、缺失残基、统计。
+- 文件缓存：结构 / 分析结果（含元数据）/ 上传；原子写入；上传 24h 清理。
+- 测试：1CRN 计数、SSE、φψ 范围、接触、4HHB 配体、缺失区段、非法 ID、404、缓存命中、缩略图、CIF/PDB 上传、非法格式、超限。
+
+**前端**
+
+- Vite 8 + React 19 + TypeScript 6.0.3 + Tailwind 4；设计 token、中英 i18n、Zustand、AbortController API 层。
+- 首页：搜索预检、校验/加载/错误、快捷 chips、6 样例画廊、上传入口、语言切换。
+- 工作台：3Dmol 懒加载与五种配色/三种表示/链显隐/点击与 hover/选中高亮、序列、残基卡、Ramachandran、接触图、档案、导出、URL 状态、键盘。
+- 每个异步区域实现 loading / empty / error；移动端 390px 无横向溢出。
+
+**数据与脚本**
+
+- 6 个 CIF + 6 张 RCSB 缩略图入库。
+- `setup.sh` / `dev.sh` / `fetch-samples.sh` / `design-check.sh`。
+- `docs/DEMO.md` 三分钟演示脚本；`docs/screenshots/` 三张实际截图。
+
+### 关键决策
+
+1. **TypeScript 6.0.3**：`typescript-eslint` 8.72 的 peer 范围是 `<6.1.0`，TS 7 无法通过 lint 验收；其余依赖按文档。
+2. **设计检查 `--allow`**：通用检查器把 DESIGN.md 明确要求的暖白纸面 + 朱红、等宽数据字体、三套字体、hairline 边框、无视频判为 FAIL。脚本显式列出允许项并注明理由，不静默忽略；首页保留 1 个 `still-page` WARN，因为 DESIGN.md 禁止装饰性连续动画。
+3. **元数据 CIF 头优先**，保证 6 个样例完全离线；仅当标题/分辨率缺失且非上传条目时才请求 RCSB data API。
+4. **3Dmol 插入码**：实测 `atom.icode` 是 `label_alt_id`，不是 `pdbx_PDB_ins_code`；3D 映射使用 `chain + resId` 回退，URL 仍保留 `ins`。现有样例无插入码。
+5. **Grid 最小宽度**：4HHB/6M0J 的长序列把 62/38 网格撑到 2670px，3D 列被压成 2px；给两个网格子项加 `min-w-0` 后修复。此问题已由 4HHB 布局测量和截图确认。
+6. **PDB 解析**：Biotite 的 `pdb.get_structure` 不接受 `use_author_fields`；移除该参数后 PDB 上传测试通过。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+| 后端 lint | `backend/.venv/bin/ruff check .` | All checks passed |
+| 前端构建 | `cd frontend && npm run build` | 通过；主包 gzip ≈126 KB，3Dmol chunk gzip ≈164 KB |
+| 前端 lint | `cd frontend && npm run lint` | 0 error |
+| 生产设计检查 | `./scripts/design-check.sh http://127.0.0.1:4173` | 首页 0 FAIL / 1 WARN；工作台 0 FAIL / 0 WARN |
+| 浏览器端到端 | CDP 脚本（搜索/样例/3D/序列/Ramachandran/接触图/URL/导出/上传/4HHB/6M0J/移动端） | 34/34 |
+| 离线 + i18n + reduced motion | CDP 脚本，阻断 `*rcsb*` | 13/13；6 个样例全部可开；英文无残留中文；动画时长 1e-05s |
+| 键盘 / PNG / 上传标识 | CDP 脚本 | 4/4；Enter 打开 1CRN 151 ms；进入可交互 ≈1.04 s |
+| API 实测 | curl `/api/samples`、`/api/entries/1CRN` | 6 样例计数正确；1CRN 46 残基 / 114 接触 / SSE 18-4-24 |
+| 截图 | 生产预览 1440/768/390 | 已复制到 `docs/screenshots/` |
+
+### 问题 / 风险
+
+- 插入码结构的 3D 精确映射仍是已知限制；当前 6 个样例不受影响。
+- 未收录 >3000 残基的真实结构；降采样与性能提示仅由代码路径保证。
+- 4HHB 可交互并已截图，但未做严格 fps 计时。
+- 设计检查首页 `still-page` WARN 保留，理由见上；通用规则与 DESIGN.md 的冲突已记录。
+- 首次打开非样例条目仍需联网访问 RCSB；样例与缩略图完全离线。
+
+### 下一步
+
+1. 在 `dev` 提交，合并回 `master`。
+2. 按 `docs/DEMO.md` 进行三分钟演示彩排。
+3. 若课程要求扩展，按 `docs/ROADMAP.md` 的 backlog 先获用户批准。
 
 ---
 

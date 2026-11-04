@@ -3,8 +3,8 @@
 > 本文是**技术契约的权威**：API 字段、数据模型、算法参数、模块边界以本文为准。  
 > 产品范围见 `PRODUCT.md` / `docs/PROJECT.md`；视觉规则见 `DESIGN.md`；代码风格见 `docs/CONVENTIONS.md`。
 
-- 版本：v1.0（2026-11-04）
-- 状态：设计定稿，代码未开始
+- 版本：v1.1（2026-11-05）
+- 状态：与实现同步；本机验收通过
 
 ---
 
@@ -191,7 +191,7 @@ unmount
    ```
 2. 用 `viewer.selectedAtoms({})` 遍历一次，把 `atom.index` 映射到残基 key。
 3. 点击回调里用 `atom.index` 查 `keyByAtomIndex`，而不是直接拼字符串。
-4. 若 3Dmol 不提供 `icode` 或与 Biotite 不一致，用“链 + 作者残基号”做二级映射，并在 M1 用 6M0J/4HHB 验证。
+4. 实测 3Dmol 2.5.5 把 mmCIF 的 `label_alt_id` 写进 `atom.icode`，**不是** `pdbx_PDB_ins_code`。因此前端映射先尝试 `chain|resi|insCode`，失败后回退到 `chain|resi`；URL 中的 `ins` 仍保留，6 个样例均无插入码，4HHB/6M0J 已验证。
 
 **验收**：点击 3D 中任意残基，序列中同名残基必须同时高亮；反之亦然。
 
@@ -289,9 +289,8 @@ utils/      纯函数：残基表、疏水性表
 | 内容 | 路径 | 失效 |
 |---|---|---|
 | 结构文件 | `.cache/structures/{entryId}.cif` | 永久；`?refresh=true` 重取 |
-| 元数据 | `.cache/meta/{entryId}.json` | 永久 |
-| 分析结果 | `.cache/analysis/{entryId}.json` | 结构文件 mtime 变化时重算 |
-| 上传结构 | `.cache/uploads/{entryId}.cif` | 启动时清理 > 24h |
+| 分析结果（含元数据） | `.cache/analysis/{entryId}.json` | 结构文件 mtime 变化时重算 |
+| 上传结构 | `.cache/uploads/{entryId}.{cif\|pdb}` | 启动时清理 > 24h |
 | 样例 | `data/samples/{ID}.cif` | 随仓库，不删除 |
 | 缩略图 | `data/thumbnails/{id}_assembly-1.jpeg` | 随仓库 |
 
@@ -343,6 +342,8 @@ Base URL：`/api`。所有响应 `application/json; charset=utf-8`，结构文�
 ```
 
 顺序固定：1CRN、1UBQ、1LYZ、4HHB、6M0J、1L2Y。
+
+`description` 是英文目录数据，供非 UI 消费者使用；前端展示时以 `home.samples.descriptions.<ID>` 的 i18n 文案为准。`chainCount / residueCount / resolution` 均由实际解析结果计算，不写死。
 
 ### 6.4 `GET /api/entries/{entryId}` → `EntryAnalysis`
 
@@ -553,7 +554,8 @@ PDB 文件：
 ```python
 from biotite.structure.io import pdb
 f = pdb.PDBFile.read(path)
-array = pdb.get_structure(f, model=1)
+# PDB 只有作者编号，没有 use_author_fields 参数。
+array = pdb.get_structure(f, model=1, extra_fields=["b_factor"])
 ```
 
 ### 8.2 蛋白质残基
@@ -651,7 +653,16 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 
 ### 8.11 元数据
 
-优先 `GET https://data.rcsb.org/rest/v1/core/entry/{ID}`：
+**实现采用 CIF 头优先**，保证 6 个样例完全离线：
+
+- `struct.title`
+- `exptl.method`
+- `refine.ls_d_res_high`
+- `refine.ls_R_free`（缺失则 `null`）
+- `pdbx_database_status.recvd_initial_deposition_date`
+
+仅当标题为空或分辨率缺失、且条目不是上传文件时，才调用
+`GET https://data.rcsb.org/rest/v1/core/entry/{ID}` 补全：
 
 - `struct.title`
 - `exptl.method`
@@ -659,14 +670,7 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 - `refine.ls_R_free`
 - `rcsb_accession_info.deposit_date`
 
-失败时从 CIF 头兜底：
-
-- `_struct.title`
-- `_exptl.method`
-- `_refine.ls_d_res_high`
-- `_refine.ls_R_free`
-
-再失败则字段为 `null`，不阻塞结构展示。
+调用失败不影响结构展示；字段保持 `null`，不猜测。
 
 ---
 
@@ -675,7 +679,7 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 1. 样例：`data/samples/{ID}.cif` 永远优先。
 2. 其他 PDB ID：`.cache/structures/{ID}.cif`。
 3. 未命中：HTTPX 拉取，超时 15s，重试 1 次；写缓存。
-4. 元数据、分析结果分别缓存，避免重复计算。
+4. 分析结果（含元数据）缓存为 JSON，避免重复计算。
 5. 断网且无缓存：`UPSTREAM_UNAVAILABLE` / `UPSTREAM_TIMEOUT`，前端提供“打开内置样例”。
 6. 缩略图不依赖网络。
 
@@ -686,13 +690,13 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 - 后端：
   - NumPy 向量化；避免逐原子 Python 循环。
   - 分析结果缓存为 JSON，二次请求直接读。
-  - RCSB 拉取用异步 HTTPX；同一 `entryId` 的并发请求加进程内锁，避免重复下载。
+  - RCSB 拉取用同步 HTTPX，超时 15s、重试 1 次；网络 I/O 集中在 `services/rcsb.py`。
 - 前端：
-  - 3Dmol 动态 `import()`。
-  - 首页不引入任何 3D 代码。
-  - Canvas 图表按需重绘，不在每次 store 变化时重绘全部。
+  - 3Dmol 动态 `import()`；生产构建为独立 chunk。
+  - 首页不引入任何 3D 代码。实测主包 gzip ≈126 KB，3Dmol chunk gzip ≈164 KB。
+  - Canvas 图表按需重绘；接触图只遍历接触对，不逐格填充。
   - `ResizeObserver` 防抖 100ms。
-  - 大结构（>3000 残基）接触图降采样。
+  - 大结构（>3000 残基）接触图 2× 降采样，并在工作台显示性能提示。
 
 ---
 
@@ -722,7 +726,7 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 
 | 风险 | 说明 | 缓解 |
 |---|---|---|
-| 3Dmol 残基标识 | `resi`/`icode` 与 Biotite 的作者编号可能不完全一致 | M1 建立 atom index → residue key 映射；用 4HHB/6M0J 验证 |
+| 3Dmol 残基标识 | 实测 `atom.icode` 是 `label_alt_id`，不是插入码；Biotite 使用作者编号 | 已用 `chain + 作者残基号` 回退映射；4HHB/6M0J 验证通过；插入码样例仍属已知限制 |
 | 逐残基着色性能 | 大结构逐残基 `addStyle` 可能慢 | 优先用 `colorfunc`；必要时缓存 style 结果 |
 | Biotite API 变化 | 2.0 与旧文档差异大 | 以本机实测为准；关键调用写测试 |
 | NMR ensemble | 只取 model 1 | 在文档与界面注明 |
@@ -745,7 +749,11 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 - `test_invalid_entry_id`：400。
 - `test_not_found`：404（用假 ID，monkeypatch 上游）。
 - `test_upload_invalid`：422。
+- `test_upload_pdb_round_trip`：PDB 上传解析为 46 残基。
+- `test_upload_too_large`：413 `FILE_TOO_LARGE`。
 - `test_cache_hit`：第二次请求不触发上游（monkeypatch 计数）。
+
+当前实测：`pytest` 22 passed，`ruff check` 无告警。
 
 测试不访问网络；使用 `data/samples/` 中的固定文件。
 

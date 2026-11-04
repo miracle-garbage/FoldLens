@@ -3,8 +3,8 @@
 > 本文记录**本机已验证**的环境、安装步骤、启动命令与排错方式。  
 > 新会话先读 `AGENTS.md`；涉及依赖变更时同步更新本文。
 
-- 快照日期：2026-11-04
-- 状态：M0 环境验证完成；`frontend/`、`backend/`、`scripts/` 尚未创建
+- 快照日期：2026-11-05
+- 状态：M0–M4 完成；前后端、脚本、样例与缩略图均已就位并通过本机验证
 
 ---
 
@@ -17,6 +17,7 @@
 | npm | 11.20.0 | 默认包管理器 |
 | pnpm | 12.17.0 | 可选 |
 | Python | 3.12.3 | 系统解释器 |
+| TypeScript | 6.0.3 | 前端；**不是 7.x**，因 `typescript-eslint` 8.72 的 peer 范围尚不支持 TS 7 |
 | uv | 0.13.7 | `~/.local/bin/uv`，**未加入 PATH** |
 | Git | 2.43.0 | 仓库分支 `master` |
 | Chromium | 136.0.7103.25 | Playwright 缓存，供设计检查器使用 |
@@ -73,7 +74,7 @@ UV_NO_MODIFY_PATH=1 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ---
 
-## 3. 首次安装项目依赖（M1 后生效）
+## 3. 首次安装项目依赖
 
 ### 3.1 后端
 
@@ -81,19 +82,19 @@ UV_NO_MODIFY_PATH=1 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 cd backend
-~/.local/bin/uv venv .venv --python 3.12
-~/.local/bin/uv pip install --python .venv/bin/python -e ".[dev]"
+~/.local/bin/uv sync --locked --extra dev --python 3.12
 ```
 
-预期安装：
+实测安装：
 
 - fastapi 0.162.0
 - uvicorn[standard] 0.54.0
 - biotite 2.0.0
 - numpy 2.5.4
 - httpx 0.28.1
-- python-multipart
-- pytest、ruff（dev）
+- pydantic 2.14.2 / pydantic-settings 2.16.2
+- python-multipart 0.0.33
+- pytest 9.2.0、ruff 0.17.3（dev）
 
 验证：
 
@@ -109,18 +110,18 @@ cd frontend
 npm install
 ```
 
-预期核心依赖：
+实测核心依赖：
 
 - react / react-dom 19.3.1
 - react-router-dom 7.18.5
 - 3dmol 2.5.5
 - zustand 5.0.16
-- i18next + react-i18next 17.1.12
-- tailwindcss 4.3.4 + @tailwindcss/vite
+- i18next 26.7.1 + react-i18next 17.1.12（react-i18next 17 要求 i18next ≥26.2）
+- tailwindcss 4.3.4 + @tailwindcss/vite 4.3.4
 - vite 8.3.5 + @vitejs/plugin-react 6.1.2
-- typescript 7.0.2
+- typescript 6.0.3（不是 7.0.2，见上表）
 - lucide-react 1.68.0
-- @fontsource-variable/fraunces、@fontsource-variable/instrument-sans、@fontsource/ibm-plex-mono
+- @fontsource-variable/fraunces / instrument-sans 5.3.0、@fontsource/ibm-plex-mono 5.3.0
 
 验证：
 
@@ -131,7 +132,7 @@ npm run lint
 
 ### 3.3 一键安装脚本
 
-M1 会提供 `scripts/setup.sh`，内部使用上述绝对路径，避免 PATH 依赖：
+`scripts/setup.sh` 内部使用上述绝对路径，避免 PATH 依赖，并会校验样例文件：
 
 ```bash
 ./scripts/setup.sh
@@ -174,18 +175,26 @@ curl http://127.0.0.1:8000/api/health
 
 ## 5. 设计检查
 
-设计 skill 的检查器是零依赖脚本，直接通过 CDP 驱动 Chromium：
+设计 skill 的检查器是零依赖脚本，直接通过 CDP 驱动 Chromium。**最终验收用生产预览**（避免 `dev-server` 规则误报）：
+
+```bash
+cd frontend && npm run build && npm run preview -- --port 4173
+# 另一个终端，项目根目录：
+./scripts/design-check.sh http://127.0.0.1:4173
+```
+
+脚本会自动在 4173（预览）与 5173（开发）之间选择，并带上 `--allow` 列表。允许项只覆盖与 `DESIGN.md` 明确冲突的通用规则（纸面色、等宽数据字体、hairline、三套字体、无视频等）；原因见 `docs/DEVLOG.md`。
+
+手动运行：
 
 ```bash
 export CHROME_PATH="$HOME/.cache/ms-playwright/chromium-1169/chrome-linux/chrome"
 
-# 首页（营销/入口页）
 node .claude/skills/design-taste-frontend/scripts/inspect.mjs \
-  http://localhost:5173 --out .taste-skill/inspect
+  http://127.0.0.1:4173 --out .taste-skill/inspect/home
 
-# 工作台（应用界面，必须加 --app）
 node .claude/skills/design-taste-frontend/scripts/inspect.mjs \
-  http://localhost:5173/entry/1CRN --app --out .taste-skill/inspect
+  http://127.0.0.1:4173/entry/1CRN --app --out .taste-skill/inspect/workspace
 ```
 
 - 输出：`desktop-fold.jpg`、`tablet-*.jpg`、`mobile-*.jpg`、`report.json`。
@@ -341,7 +350,22 @@ ss -ltnp | grep -E '5173|8000'
 
 ---
 
-## 9. 本次环境验证记录（2026-11-04）
+## 9. 验证记录
+
+### 2026-11-05（实现完成）
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+| 后端 lint | `backend/.venv/bin/ruff check .` | All checks passed |
+| 前端构建 | `npm run build` | 通过；主包 gzip ≈126 KB，3Dmol gzip ≈164 KB |
+| 前端 lint | `npm run lint` | 0 error |
+| 生产设计检查 | `./scripts/design-check.sh http://127.0.0.1:4173` | 0 FAIL；首页 1 WARN（动效少，已说明） |
+| 浏览器端到端 | 自建 CDP 脚本 | 34/34 通过 |
+| 离线 / i18n / reduced motion | 自建 CDP 脚本 | 13/13 通过 |
+| 键盘搜索 / PNG / 上传标识 | 自建 CDP 脚本 | 4/4 通过；1CRN 进入可交互 ≈1.0s（缓存命中） |
+
+### 2026-11-04（环境验证）
 
 | 验证 | 命令 / 方法 | 结果 |
 |---|---|---|
