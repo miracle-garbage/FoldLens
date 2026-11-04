@@ -9,10 +9,10 @@
 
 - **阶段**：M0–M4 完成；标准版功能实现并通过本机验收
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：集成分支 `dev`（完成后合并 `master`）
+- **分支**：`dev` 已合并入 `master`（实现 `6eef7ce`，merge `a7b7078`）
 - **最后验证**：2026-11-05（pytest 22、ruff、build、lint、设计检查、浏览器端到端 34/34、离线/i18n/reduced-motion 13/13、键盘/PNG/上传 4/4）
 - **最后文档更正**：2026-11-05（课程归属：本项目为生物信息学课程设计，与医学人工智能无关）
-- **下一步**：合并 `dev` → `master`；按 `docs/DEMO.md` 做答辩演示
+- **下一步**：按 `docs/DEMO.md` 做答辩演示；后续维护从 `master` 开始
 - **阻塞**：无
 - **待用户决定**：
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
@@ -35,7 +35,7 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
-| 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `dev` |
+| 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
 
