@@ -4,7 +4,7 @@
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
 - 更新日期：2026-11-06
-- 当前焦点：**M0–M4 已完成；测试完善与已批准扩展进行中（T1、EX1 已合并入 `dev`）**
+- 当前焦点：**M0–M4 已完成；测试完善与已批准扩展进行中（T1、T2、EX1 已合并入 `dev`，准备 `beta` 发布）**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -219,6 +219,10 @@
   - 根因二：3D 视图卸载时 `viewer.clear()` 在已脱离文档的容器上渲染，3Dmol `OffscreenCanvas` 抛出未捕获异常，污染 React 卸载提交。
   - 修复：查询串改用 `history.replaceState`（离开 `/entry/` 后跳过）；`ResizeObserver` 跳过 detached/0 尺寸容器；清理时 `clear()` 不允许抛错。
   - 合并：`dd8ab88`（`fix/back-navigation-crash`）。
+- [x] **T2** 密集结构模型单位过大导致穿模
+  - Cartoon 厚度 0.4 → 0.25；Stick 半径 0.16 → 0.12；Sphere 缩放 0.28 → 0.22；配体 Stick 0.14 → 0.11；选中叠加同步缩小。
+  - 尺寸集中为 `style.ts` 顶部常量。
+  - 合并：`3280875`（`fix/model-unit-size`）。
 
 ---
 

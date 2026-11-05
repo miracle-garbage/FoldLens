@@ -7,13 +7,13 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；用户测试完善与已批准扩展进行中
-- **发布标签**：`alpha`（标准版首个可演示版本）
+- **阶段**：M0–M4 完成；T1/T2/EX1 已合并；发布 `beta`
+- **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1（merge `dd8ab88`）与 EX1（merge `a80fb22`）；`master` 仍为 `cc837db`
-- **最后验证**：2026-11-06（pytest 22 passed、build 620ms、lint；七种配色切换与 4HHB 多链渐变截图检查）
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）；`master` 已同步 `dev`
+- **最后验证**：2026-11-06（pytest 22 passed、build 666ms、lint；T2 前后截图、EX1 七种配色与 4HHB 多链渐变检查）
+- **最后修复**：2026-11-06（T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
 - **最后新增**：2026-11-06（EX1：残基位置、电荷两种配色）
-- **最后修复**：2026-11-06（T1：返回按钮偶发卡死/白屏）
 - **下一步**：等待用户下一条测试/扩展反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
 - **阻塞**：无
 - **待用户决定**：
@@ -37,12 +37,56 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX1：补全残基位置与电荷配色 | `0e2e599` / merge `a80fb22` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T1：修复返回按钮偶发卡死/白屏 | `ee1be9c` + `eac8a28` / merge `dd8ab88` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 修复 dev.sh 在系统 Node 18 下的启动失败 | `master`（见最新提交） |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · T2：缩小模型单位，减轻密集结构穿模
+
+### 目标
+
+用户报告：复杂或紧凑的蛋白质结构中，3D 模型的构成单位（带状、棒、球）相互穿插（穿模），要求适当调小。
+
+### 完成内容
+
+- `frontend/src/features/structure/style.ts`：尺寸集中为命名常量并整体调小。
+  - Cartoon 厚度 0.4 → 0.25。
+  - Stick 半径 0.16 → 0.12。
+  - Sphere 缩放 0.28 → 0.22。
+  - 配体 Stick 半径 0.14 → 0.11。
+  - 选中残基叠加 Stick：0.22 / 0.20 / 0.28 → 0.16 / 0.16 / 0.20（仍明显粗于基础样式）。
+
+### 关键决策
+
+1. 采用全局缩小而非按结构自适应，保持不同条目的视觉一致性；若后续仍觉穿模，可再改为按残基数/密度自适应。
+2. 选中高亮同步缩小但保留与基础样式的明显粗细差，不影响联动识别。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前后截图 | CDP：1CRN、4HHB、6M0J × Cartoon/Stick/Sphere | 密集结构穿插明显减轻，简单结构仍可读 |
+| 表示与选中 | 4HHB 三种表示切换 + 选中 45 号残基 | 正常；URL 与 `aria-pressed` 正确 |
+| 控制台 | CDP 收集异常 | 0 |
+| 前端构建 | `cd frontend && npm run build` | built in 666ms |
+| 前端 lint | `cd frontend && npm run lint` | 0 error |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+
+### 问题 / 风险
+
+- 排障中 Vite 模块缓存出现一次陈旧状态，已重启开发服务器；合并后建议浏览器刷新。
+- 分支 `fix/model-unit-size` 已合并入 `dev`，未删除。
+- Cartoon 宽度（3Dmol 的 SS 宽度）未改，穿模在极端密集区域只能减轻、无法完全消除。
+
+### 下一步
+
+合并 `dev` → `master` 并打 `beta` 标签；等待用户下一条反馈。
 
 ---
 
