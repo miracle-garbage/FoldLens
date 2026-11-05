@@ -15,8 +15,10 @@ import {
   UI_COLORS,
   colorForBFactor,
   colorForChain,
+  colorForCharge,
   colorForElement,
   colorForHydrophobicity,
+  colorForPosition,
 } from './colors'
 
 export interface StructureStyleOptions {
@@ -57,10 +59,27 @@ function bFactorRange(residues: ResidueRecord[]): [number, number] {
   return [Math.min(...values), Math.max(...values)]
 }
 
+interface PositionScale {
+  localIndex: Map<string, number>
+  totals: Map<string, number>
+}
+
+function buildPositionScale(residues: ResidueRecord[]): PositionScale {
+  const localIndex = new Map<string, number>()
+  const totals = new Map<string, number>()
+  for (const residue of residues) {
+    const position = totals.get(residue.chainId) ?? 0
+    localIndex.set(keyString(residue), position)
+    totals.set(residue.chainId, position + 1)
+  }
+  return { localIndex, totals }
+}
+
 function colorForAtom(
   atom: AtomSpec,
   options: StructureStyleOptions,
   bRange: [number, number],
+  positionScale: PositionScale | null,
 ): string {
   const residue = residueForAtom(atom, options.index)
   switch (options.scheme) {
@@ -68,8 +87,19 @@ function colorForAtom(
       return residue ? SSE_COLORS[residue.sse] : UI_COLORS.muted
     case 'chain':
       return colorForChain(String(atom.chain ?? ''))
+    case 'position': {
+      if (!residue || !positionScale) {
+        return UI_COLORS.muted
+      }
+      return colorForPosition(
+        positionScale.localIndex.get(keyString(residue)) ?? 0,
+        positionScale.totals.get(residue.chainId) ?? 1,
+      )
+    }
     case 'hydrophobicity':
       return colorForHydrophobicity(residue?.hydrophobicity ?? null)
+    case 'charge':
+      return colorForCharge(residue?.name3)
     case 'bfactor':
       return colorForBFactor(residue?.bFactor ?? null, bRange[0], bRange[1])
     case 'element':
@@ -118,8 +148,12 @@ export function applyStructureStyles(
   options: StructureStyleOptions,
 ): void {
   const bRange = bFactorRange(options.analysis.residues)
+  const positionScale =
+    options.scheme === 'position'
+      ? buildPositionScale(options.analysis.residues)
+      : null
   const colorfunc = (atom: AtomSpec) =>
-    colorForAtom(atom, options, bRange)
+    colorForAtom(atom, options, bRange, positionScale)
 
   viewer.setStyle({}, {})
   viewer.setStyle({}, baseStyleFor(options.representation, colorfunc))
