@@ -74,6 +74,7 @@ git log --oneline -5
 | Chromium | 136.0.7103.25，位于 `~/.cache/ms-playwright/chromium-1169/chrome-linux/chrome` |
 | 设计检查器 | `.claude/skills/design-taste-frontend/scripts/inspect.mjs` |
 | Impeccable | 4.8.0，二进制已就位 |
+| Windows | 支持：Node 20.19+/22.12+ + uv；使用 `scripts\*.cmd`（尚未在 Windows 实机验收） |
 
 **已知环境坑**
 
@@ -89,13 +90,17 @@ git log --oneline -5
 ## 5. 常用命令
 
 ```bash
-# 一次性安装
+# 一次性安装（Linux / macOS）
 ./scripts/setup.sh
+# Windows: scripts\setup.cmd
 
-# 同时启动前后端（推荐）
+# 同时启动前后端（推荐；就绪后自动打开默认浏览器）
 ./scripts/dev.sh
+# Windows: scripts\dev.cmd
 
-# 分别启动
+# 关闭自动打开：FOLDLENS_NO_OPEN=1 ./scripts/dev.sh，或加 --no-open
+
+# 分别启动（Windows 下 uvicorn 路径为 .venv\Scripts\uvicorn.exe）
 cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
 cd frontend && npm run dev            # http://localhost:5173
 

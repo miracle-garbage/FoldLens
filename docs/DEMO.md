@@ -9,7 +9,7 @@
 ./scripts/dev.sh
 ```
 
-打开 <http://localhost:5173>。后端在 127.0.0.1:8000，前端通过 Vite 代理 `/api`。
+启动器会在就绪后自动打开 <http://localhost:5173>（Linux / Windows 均可）。后端在 127.0.0.1:8000，前端通过 Vite 代理 `/api`。
 
 ## 1. 首页（20 秒）
 

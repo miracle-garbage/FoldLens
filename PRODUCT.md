@@ -38,7 +38,7 @@ FoldLens 是一个本地运行的蛋白质结构探索器。用户输入 PDB ID 
 - 课程：生物信息学课程设计。
 - 运行方式：本地 `localhost`，前端 5173，后端 8000；不部署公网。
 - 数据来源：RCSB PDB 公共数据；内置 6 个样例保证离线可用。
-- 演示设备：普通笔记本，浏览器为 Chrome / Chromium / Firefox。
+- 演示设备：普通笔记本（Linux / Windows），浏览器为 Chrome / Chromium / Firefox。
 - 语言：中文为默认界面语言，可切换英文；PDB、Cα、Ramachandran、B-factor 等术语在两种语言下都保留英文。
 - 开发方式：用户会更换 AI 模型/对话窗口继续开发，因此文档与开发日志是唯一可靠的上下文。
 
@@ -56,10 +56,12 @@ FoldLens 是一个本地运行的蛋白质结构探索器。用户输入 PDB ID 
 - 导出：3D 截图 PNG、分析数据 CSV。
 - URL 状态：`/entry/1CRN?chain=A&res=45&scheme=ss&repr=cartoon`。
 - 中英切换；首选中文。
+- 跨平台启动：Linux / macOS 用 `scripts/dev.sh`，Windows 用 `scripts\dev.cmd`；就绪后自动打开默认浏览器（可用 `FOLDLENS_NO_OPEN=1` 关闭）。
 
 ### 技术约束
 
 - 纯本地运行，不做部署、不做鉴权、不接数据库。
+- 跨平台：Linux 与 Windows 均可运行；启动脚本统一为 Node 实现的跨平台启动器。
 - 只解析第一个 model；不处理多模型 ensemble 的对比。
 - 接触图基于 Cα 距离，阈值 8 Å。
 - 二级结构使用 Biotite 的 P-SEA 算法，不依赖外部 DSSP 二进制。
