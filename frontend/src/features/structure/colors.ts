@@ -63,6 +63,19 @@ const HYDROPHOBICITY_LOW = '#4C7FA8'
 const HYDROPHOBICITY_MID = '#E8E2D5'
 const HYDROPHOBICITY_HIGH = '#D9822B'
 
+/** N → C rainbow: blue → teal → green → gold → vermilion. */
+const POSITION_STOPS = [
+  '#4C7FA8',
+  '#3E9B94',
+  '#7FAF5F',
+  '#D9A441',
+  '#E0523B',
+] as const
+
+const CHARGE_NEGATIVE = '#E0523B'
+const CHARGE_POSITIVE = '#5B8DEF'
+const CHARGE_NEUTRAL = '#CFC9BE'
+
 const BFACTOR_LOW = '#2A7F7A'
 const BFACTOR_MID = '#D9A441'
 const BFACTOR_HIGH = '#E0523B'
@@ -132,6 +145,46 @@ export function colorForHydrophobicity(value: number | null): string {
     HYDROPHOBICITY_HIGH,
     (normalized - 0.5) * 2,
   )
+}
+
+/**
+ * Rainbow along one chain's sequence, N-terminus (0) to C-terminus (count - 1).
+ * Each chain restarts the gradient so every subunit's direction stays legible.
+ */
+export function colorForPosition(index: number, count: number): string {
+  if (count <= 1) {
+    return POSITION_STOPS[0]
+  }
+  const normalized = Math.min(1, Math.max(0, index / (count - 1)))
+  const scaled = normalized * (POSITION_STOPS.length - 1)
+  const segment = Math.min(
+    POSITION_STOPS.length - 2,
+    Math.floor(scaled),
+  )
+  return mixColors(
+    POSITION_STOPS[segment],
+    POSITION_STOPS[segment + 1],
+    scaled - segment,
+  )
+}
+
+/**
+ * Acidic residues (Asp/Glu) red, basic residues (Lys/Arg) blue.
+ * Histidine is left neutral: its protonation is environment-dependent, so
+ * colouring it as charged would overstate the structure data.
+ */
+export function colorForCharge(name3: string | null | undefined): string {
+  if (!name3) {
+    return CHARGE_NEUTRAL
+  }
+  const normalized = name3.toUpperCase()
+  if (normalized === 'ASP' || normalized === 'GLU') {
+    return CHARGE_NEGATIVE
+  }
+  if (normalized === 'LYS' || normalized === 'ARG') {
+    return CHARGE_POSITIVE
+  }
+  return CHARGE_NEUTRAL
 }
 
 export function colorForBFactor(

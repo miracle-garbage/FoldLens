@@ -2,7 +2,14 @@
 
 export type Sse = 'helix' | 'strand' | 'coil'
 
-export type Scheme = 'ss' | 'chain' | 'hydrophobicity' | 'bfactor' | 'element'
+export type Scheme =
+  | 'ss'
+  | 'chain'
+  | 'position'
+  | 'hydrophobicity'
+  | 'charge'
+  | 'bfactor'
+  | 'element'
 
 export type Representation = 'cartoon' | 'stick' | 'sphere'
 

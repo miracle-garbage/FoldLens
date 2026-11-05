@@ -138,7 +138,14 @@ FoldLens/
 ```ts
 interface AppState {
   selection: ResidueKey | null;          // { chainId, resId, insCode }
-  scheme: 'ss' | 'chain' | 'hydrophobicity' | 'bfactor' | 'element';
+  scheme:
+    | 'ss'
+    | 'chain'
+    | 'position'
+    | 'hydrophobicity'
+    | 'charge'
+    | 'bfactor'
+    | 'element';
   representation: 'cartoon' | 'stick' | 'sphere';
   hiddenChains: string[];
   language: 'zh' | 'en';
@@ -168,7 +175,8 @@ mount
 update (selection / scheme / representation / hiddenChains)
   → 重新应用 style → render()
 unmount
-  → clear() → 释放容器
+  → 断开 ResizeObserver（detached / 0 尺寸不 resize）
+  → clear()（异常不得逃逸）→ 清空容器
 ```
 
 要求：
@@ -211,7 +219,7 @@ type WorkspaceQuery = {
 规则：
 
 - 打开条目用 `navigate('/entry/1CRN?scheme=ss')`（push）。
-- 选中、配色、表示变化用 `setSearchParams(..., { replace: true })`。
+- 选中、配色、表示变化用 `history.replaceState` 直接改查询串（不触发 router 导航，避免与返回导航竞争）；离开 `/entry/` 后不再写入。
 - 语言不写入 URL。
 - 非法值静默回退到默认，不抛错。
 
@@ -671,6 +679,23 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 - `rcsb_accession_info.deposit_date`
 
 调用失败不影响结构展示；字段保持 `null`，不猜测。
+
+### 8.12 3D 配色方案
+
+| scheme | 映射 |
+|---|---|
+| `ss` | Biotite SSE：helix / strand / coil → `SSE_COLORS` |
+| `chain` | `chainId` 哈希到 8 色链色板 |
+| `position` | 每条链内部按残基顺序归一化到 `[0, 1]`；蓝 → 青 → 绿 → 金 → 朱红 |
+| `hydrophobicity` | Kyte–Doolittle，固定 `[−4.5, 4.5]`；蓝 → 米白 → 橙 |
+| `charge` | ASP / GLU 红（负电）；LYS / ARG 蓝（正电）；其余中性浅灰 |
+| `bfactor` | 当前条目 min / max 归一化；青 → 金 → 朱红 |
+| `element` | CPK 风格：C / N / O / S / P / H 及常见金属与离子 |
+
+- 全部集中在 `features/structure/colors.ts`；组件与算法文件不得写死颜色。
+- 配体保持 3Dmol Jmol 配色。
+- `position` 按链归一化：多链结构中每条链各自从 N 端开始渐变，避免后段链全部落在红色端。
+- HIS 在 `charge` 中不标为带电：其质子化状态依赖环境，标成带电会过度解读结构数据。
 
 ---
 
