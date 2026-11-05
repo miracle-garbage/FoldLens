@@ -3,8 +3,9 @@
 > 本文记录**本机已验证**的环境、安装步骤、启动命令与排错方式。  
 > 新会话先读 `AGENTS.md`；涉及依赖变更时同步更新本文。
 
-- 快照日期：2026-11-05
-- 状态：M0–M4 完成；前后端、脚本、样例与缩略图均已就位并通过本机验证
+- 快照日期：2026-11-06
+- 状态：`beta`；前后端、脚本、样例与缩略图均已就位并通过 Linux 本机验证
+- 跨平台：Linux / macOS 使用 `.sh` 包装脚本，Windows 使用 `.cmd`；两者都调用同一套 `scripts/*.mjs`
 
 ---
 
@@ -135,10 +136,11 @@ npm run lint
 
 ### 3.3 一键安装脚本
 
-`scripts/setup.sh` 内部使用上述绝对路径，避免 PATH 依赖，并会校验样例文件：
+`scripts/setup.sh` 是 Unix 包装；实际逻辑在跨平台的 `scripts/setup.mjs`，会自动定位 uv、安装后端与前端依赖，并校验样例文件：
 
 ```bash
-./scripts/setup.sh
+./scripts/setup.sh        # Linux / macOS
+scripts\setup.cmd         # Windows
 ```
 
 ---
@@ -148,12 +150,16 @@ npm run lint
 ### 4.1 一键启动（推荐）
 
 ```bash
-./scripts/dev.sh
+./scripts/dev.sh        # Linux / macOS
+scripts\dev.cmd         # Windows
 ```
 
 - 前端：<http://localhost:5173>
 - 后端：<http://127.0.0.1:8000>
 - Vite 将 `/api` 代理到后端。
+- 启动器（`scripts/dev.mjs`）会等待前端就绪后**自动打开默认浏览器**。
+- 关闭自动打开：`FOLDLENS_NO_OPEN=1 ./scripts/dev.sh`（或 `--no-open`）。
+- Vite 使用 `--strictPort`：5173 被占用时直接报错，避免自动换端口后打开错误地址。
 
 ### 4.2 分别启动
 
@@ -173,6 +179,38 @@ npm run dev
 curl http://127.0.0.1:8000/api/health
 # {"status":"ok","version":"0.1.0"}
 ```
+
+### 4.4 Windows 说明
+
+前置：
+
+- Node.js `^20.19.0 || >=22.12.0`（`node --version` 可查；推荐与 `.nvmrc` 一致）。
+- uv：PowerShell 安装：
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+  默认位于 `%USERPROFILE%\.local\bin\uv.exe`；如不在 PATH，可设置 `UV_BIN` 指向它。
+- Python 3.12 无需手动 venv；`uv sync --python 3.12` 会处理（必要时由 uv 下载托管 Python）。
+
+运行：
+
+```bat
+scripts\setup.cmd
+scripts\dev.cmd
+```
+
+- 脚本会自动使用 `backend\.venv\Scripts\uvicorn.exe`（不存在时退回 `python -m uvicorn`）。
+- 自动打开浏览器使用 Windows 的 `start`；关闭方式同样是 `set FOLDLENS_NO_OPEN=1` 后运行。
+- 手动启动时，Unix 的 `.venv/bin/...` 要换成 `.venv\Scripts\...`：
+  ```bat
+  cd backend
+  .venv\Scripts\uvicorn app.main:app --reload --port 8000
+
+  cd frontend
+  npm run dev -- --strictPort
+  ```
+- `scripts/design-check.sh` 仍以 Linux 的 Chromium 路径书写，不属于运行必需项。
+- **验收状态**：跨平台启动器使用 Node 标准 API 与平台分支实现；Linux 路径已实测，Windows 路径尚未在 Windows 实机上运行验证。首次在 Windows 上使用时请按 `docs/CONVENTIONS.md` 记录验证结果。
 
 ---
 

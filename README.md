@@ -4,7 +4,7 @@
 > 本地运行，离线可演示，中文 / English。
 
 **课程项目**：生物信息学课程设计（本项目与医学人工智能无关）
-**当前阶段**：标准版功能完成（M1–M4），本地可运行、可离线演示
+**当前阶段**：`beta`（标准版 M1–M4 + T1/T2 修复 + EX1 配色），Linux / Windows 均可运行
 **范围**：标准版（见下方“功能”）
 
 ---
@@ -126,7 +126,7 @@ FoldLens/
 ├── data/
 │   ├── samples/           # 6 个 mmCIF（入库）
 │   └── thumbnails/        # 6 张缩略图（入库）
-├── scripts/               # setup / dev / fetch-samples / design-check
+├── scripts/               # 跨平台 setup / dev / fetch-samples（.mjs + .sh/.cmd）+ design-check
 └── .cache/                # 运行时缓存（不入库）
 ```
 
@@ -134,14 +134,26 @@ FoldLens/
 
 ## 快速开始
 
+**Linux / macOS**
+
 ```bash
 # 一次性安装（创建 backend/.venv、安装前端依赖、校验 6 个样例）
 ./scripts/setup.sh
 
-# 同时启动前后端
+# 同时启动前后端，并自动打开默认浏览器
 ./scripts/dev.sh
-# 打开 http://localhost:5173
 ```
+
+**Windows（PowerShell / cmd）**
+
+```bat
+scripts\setup.cmd
+scripts\dev.cmd
+```
+
+- 启动器会等待前端就绪后自动打开 <http://localhost:5173>；不需要手动输入地址。
+- 如需关闭自动打开（例如无头环境）：`FOLDLENS_NO_OPEN=1 ./scripts/dev.sh`，或加 `--no-open`。
+- Windows 需要 Node.js ≥ 20.19（推荐 22.12+）和 uv；具体见 [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) 第 4.4 节。
 
 手动启动：
 
@@ -166,7 +178,8 @@ cd frontend && npm run build && npm run lint
 ```
 
 > 六个样例与缩略图随仓库打包；首次打开非样例条目时才需要联网访问 RCSB。
-> 脚本会自动选择符合 Vite 8 要求的 Node（`^20.19.0 || >=22.12.0`）；手动运行 `npm` 前先 `nvm use`（项目根有 `.nvmrc`）。
+> Unix 包装脚本会自动选择符合 Vite 8 要求的 Node（`^20.19.0 || >=22.12.0`）；手动运行 `npm` 前先 `nvm use`（项目根有 `.nvmrc`）。
+> Windows 上请确保 `node --version` 为 20.19+ 或 22.12+；启动器会给出明确错误。
 
 ---
 

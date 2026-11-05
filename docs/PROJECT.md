@@ -342,6 +342,7 @@ FastAPI (:8000)
 
 - 类型安全：TypeScript strict；Python 全量类型标注。
 - 单一数据源：选中状态只在 store；API 契约只在 `ARCHITECTURE.md`；颜色只在 token。
+- 跨平台：启动 / 安装 / 样例脚本用 Node 实现，Linux / macOS 与 Windows 共用同一逻辑；平台差异只保留在 `.sh` / `.cmd` 包装与 venv 路径解析中。
 - 文档与日志强制同步（见 `AGENTS.md`）。
 
 ---
@@ -388,7 +389,7 @@ FastAPI (:8000)
 
 ### 10.3 演示
 
-- [x] 一条命令启动前后端。
+- [x] 一条命令启动前后端（Linux / Windows），就绪后自动打开默认浏览器。
 - [x] 从启动到 1CRN 可交互 ≤ 10 秒。
 - [x] 答辩用的完整流程可在 3 分钟内讲完。
 

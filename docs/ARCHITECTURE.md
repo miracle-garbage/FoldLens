@@ -48,8 +48,9 @@
 
 | 进程 | 地址 | 启动方式 |
 |---|---|---|
-| Vite dev server | `http://localhost:5173` | `npm run dev` |
+| Vite dev server | `http://localhost:5173` | `npm run dev -- --strictPort` |
 | FastAPI | `http://127.0.0.1:8000` | `uvicorn app.main:app --reload --port 8000` |
+| 启动器 | — | `scripts/dev.mjs`（Linux/macOS 经 `dev.sh`，Windows 经 `dev.cmd`） |
 
 Vite 配置：
 
@@ -102,11 +103,13 @@ FoldLens/
 │   ├── samples/                 # 1CRN.cif ... 1L2Y.cif
 │   └── thumbnails/              # 1crn_assembly-1.jpeg ...
 └── scripts/
-    ├── setup.sh
-    ├── dev.sh
-    ├── fetch-samples.sh
+    ├── setup.mjs / setup.sh / setup.cmd
+    ├── dev.mjs / dev.sh / dev.cmd
+    ├── fetch-samples.mjs / fetch-samples.sh / fetch-samples.cmd
     └── design-check.sh
 ```
+
+`*.mjs` 是跨平台实现，`.sh` 是 Unix 包装（自动选 Node），`.cmd` 是 Windows 包装。`dev.mjs` 负责启动后端与 Vite、轮询就绪、自动打开默认浏览器，并在退出时清理两个子进程。
 
 ---
 
