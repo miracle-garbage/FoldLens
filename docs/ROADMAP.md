@@ -3,8 +3,8 @@
 > 本文是**进度权威**。每次会话结束必须更新勾选状态与“当前焦点”。  
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
-- 更新日期：2026-11-05
-- 当前焦点：**标准版 M1–M4 完成并已从 `dev` 合并入 `master`（merge `a7b7078`）**
+- 更新日期：2026-11-06
+- 当前焦点：**M0–M4 已完成；测试完善与已批准扩展进行中（T1、T2、EX1 已合并入 `dev`，准备 `beta` 发布）**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -207,6 +207,33 @@
 - 4HHB 已完成交互与截图验证，未做严格 fps 计量。
 - 设计检查的 `--allow` 仅覆盖与 `DESIGN.md` 冲突的通用规则；首页仍保留 1 个 `still-page` WARN（动效少），与“禁止装饰性动画”一致。
 - 前端测试仍以 `build + lint + 浏览器端到端` 为主，未引入 Vitest（见 `docs/PROJECT.md` 第 12 节）。
+
+---
+
+## 测试完善 · 用户测试反馈（进行中）
+
+工作方式：用户逐项报告问题；每项从 `dev` 开独立分支修复，用户确认“完成了”后再合并回 `dev`。
+
+- [x] **T1** 返回按钮偶发卡死/白屏
+  - 根因一：`setSearchParams` 写参数导航与返回导航竞争，导致返回无效或 URL/路由失步。
+  - 根因二：3D 视图卸载时 `viewer.clear()` 在已脱离文档的容器上渲染，3Dmol `OffscreenCanvas` 抛出未捕获异常，污染 React 卸载提交。
+  - 修复：查询串改用 `history.replaceState`（离开 `/entry/` 后跳过）；`ResizeObserver` 跳过 detached/0 尺寸容器；清理时 `clear()` 不允许抛错。
+  - 合并：`dd8ab88`（`fix/back-navigation-crash`）。
+- [x] **T2** 密集结构模型单位过大导致穿模
+  - Cartoon 厚度 0.4 → 0.25；Stick 半径 0.16 → 0.12；Sphere 缩放 0.28 → 0.22；配体 Stick 0.14 → 0.11；选中叠加同步缩小。
+  - 尺寸集中为 `style.ts` 顶部常量。
+  - 合并：`3280875`（`fix/model-unit-size`）。
+
+---
+
+## 已批准扩展（用户明确要求）
+
+- [x] **EX1** 常见 3D 着色方案补全
+  - 保留原有五种：二级结构、链、疏水性、B-factor、元素。
+  - 新增 **残基位置**：每条链内部按残基顺序 N→C 归一化，蓝 → 青 → 绿 → 金 → 朱红。
+  - 新增 **电荷**：ASP/GLU 红（负电）、LYS/ARG 蓝（正电）、其余中性浅灰；HIS 保持中性。
+  - 合并：`a80fb22`（`feat/color-schemes`）。
+  - 文档同步：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`（Scheme 类型 + 8.12 配色映射表）。
 
 ---
 

@@ -21,7 +21,9 @@ const REPRESENTATION_LABELS: Record<Representation, string> = {
 const SCHEME_LABELS: Record<Scheme, string> = {
   ss: 'workspace.scheme.ss',
   chain: 'workspace.scheme.chain',
+  position: 'workspace.scheme.position',
   hydrophobicity: 'workspace.scheme.hydrophobicity',
+  charge: 'workspace.scheme.charge',
   bfactor: 'workspace.scheme.bfactor',
   element: 'workspace.scheme.element',
 }

@@ -7,14 +7,14 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；标准版功能实现并通过本机验收
-- **发布标签**：`alpha`（标准版首个可演示版本）
+- **阶段**：M0–M4 完成；T1/T2/EX1 已合并；发布 `beta`
+- **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已合并入 `master`（实现 `6eef7ce`，merge `a7b7078`）
-- **最后验证**：2026-11-05（pytest 22、ruff、build、lint、设计检查、浏览器端到端 34/34、离线/i18n/reduced-motion 13/13、键盘/PNG/上传 4/4）
-- **最后修复**：2026-11-05 02:10（`dev.sh` 在系统 Node 18 下的启动失败；新增 Node 自动解析）
-- **最后文档更正**：2026-11-05（课程归属：本项目为生物信息学课程设计，与医学人工智能无关）
-- **下一步**：按 `docs/DEMO.md` 做答辩演示；后续维护从 `master` 开始
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）；`master` 已同步 `dev`
+- **最后验证**：2026-11-06（pytest 22 passed、build 666ms、lint；T2 前后截图、EX1 七种配色与 4HHB 多链渐变检查）
+- **最后修复**：2026-11-06（T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
+- **最后新增**：2026-11-06（EX1：残基位置、电荷两种配色）
+- **下一步**：等待用户下一条测试/扩展反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
 - **阻塞**：无
 - **待用户决定**：
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
@@ -37,10 +37,144 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX1：补全残基位置与电荷配色 | `0e2e599` / merge `a80fb22` |
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | T1：修复返回按钮偶发卡死/白屏 | `ee1be9c` + `eac8a28` / merge `dd8ab88` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 修复 dev.sh 在系统 Node 18 下的启动失败 | `master`（见最新提交） |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · T2：缩小模型单位，减轻密集结构穿模
+
+### 目标
+
+用户报告：复杂或紧凑的蛋白质结构中，3D 模型的构成单位（带状、棒、球）相互穿插（穿模），要求适当调小。
+
+### 完成内容
+
+- `frontend/src/features/structure/style.ts`：尺寸集中为命名常量并整体调小。
+  - Cartoon 厚度 0.4 → 0.25。
+  - Stick 半径 0.16 → 0.12。
+  - Sphere 缩放 0.28 → 0.22。
+  - 配体 Stick 半径 0.14 → 0.11。
+  - 选中残基叠加 Stick：0.22 / 0.20 / 0.28 → 0.16 / 0.16 / 0.20（仍明显粗于基础样式）。
+
+### 关键决策
+
+1. 采用全局缩小而非按结构自适应，保持不同条目的视觉一致性；若后续仍觉穿模，可再改为按残基数/密度自适应。
+2. 选中高亮同步缩小但保留与基础样式的明显粗细差，不影响联动识别。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前后截图 | CDP：1CRN、4HHB、6M0J × Cartoon/Stick/Sphere | 密集结构穿插明显减轻，简单结构仍可读 |
+| 表示与选中 | 4HHB 三种表示切换 + 选中 45 号残基 | 正常；URL 与 `aria-pressed` 正确 |
+| 控制台 | CDP 收集异常 | 0 |
+| 前端构建 | `cd frontend && npm run build` | built in 666ms |
+| 前端 lint | `cd frontend && npm run lint` | 0 error |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+
+### 问题 / 风险
+
+- 排障中 Vite 模块缓存出现一次陈旧状态，已重启开发服务器；合并后建议浏览器刷新。
+- 分支 `fix/model-unit-size` 已合并入 `dev`，未删除。
+- Cartoon 宽度（3Dmol 的 SS 宽度）未改，穿模在极端密集区域只能减轻、无法完全消除。
+
+### 下一步
+
+合并 `dev` → `master` 并打 `beta` 标签；等待用户下一条反馈。
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · EX1：补全常见 3D 着色方案
+
+### 目标
+
+按用户给出的常见配色说明，在标准版五种配色基础上补齐缺失方案。
+
+### 完成内容
+
+- 配色扩展为七种：二级结构、链、**残基位置**、疏水性、**电荷**、B-factor、元素。
+- **残基位置**：每条链内部按残基顺序 N→C 归一化，颜色蓝 → 青 → 绿 → 金 → 朱红；多链结构每条链各自重新开始。
+- **电荷**：ASP/GLU 红（负电）、LYS/ARG 蓝（正电）、其余中性浅灰；HIS 保持中性。
+- 原有五种映射不变（`ss`、`chain`、`hydrophobicity`、`bfactor`、`element`）。
+- 类型、`SCHEMES`、下拉标签、zh/en 文案、URL 校验收口。
+- 文档同步：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`（Scheme 类型、4.4 卸载说明、新增 8.12 配色映射表、URL 写入改为 `history.replaceState` 的契约同步）。
+
+### 关键决策
+
+1. `position` 按链归一化，避免多链结构后段链全部落在红色端。
+2. HIS 在 `charge` 中不标带电：质子化状态依赖环境，标成带电会过度解读数据。
+3. 现有 B-factor 色阶（青 → 金 → 朱红）保持不变；如课程要求蓝色低值 → 红色高值，可再调整。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 七种方案切换 | CDP：1CRN 逐项切换并截图 | 7/7 正常；中英文下拉标签完整 |
+| 多链渐变 | CDP：4HHB `scheme=position` 截图 | 四条链各自 N→C 渐变 |
+| URL 恢复 | `/entry/1CRN?scheme=position&repr=cartoon&chain=A&res=45` | 下拉为 position，45 号残基选中 |
+| 控制台 | CDP 收集异常 | 0 |
+| 前端构建 | `cd frontend && npm run build` | built in 620ms |
+| 前端 lint | `cd frontend && npm run lint` | 0 error |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed, 1 warning（既有 httpx 弃用提示） |
+
+### 问题 / 风险
+
+- 分支 `feat/color-schemes` 已合并入 `dev`，未删除。
+- 3D 截图为开发期验证，未新增文档截图。
+- 未做严格的色彩对比度自动检测；七种方案均在深色观察窗上目视检查。
+
+### 下一步
+
+等待用户下一条测试/扩展反馈；每项从 `dev` 开独立分支，用户确认后合并并同步 `ROADMAP` / `DEVLOG`。
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · T1：修复返回按钮偶发卡死/白屏
+
+### 目标
+
+用户报告：查看完蛋白质结果后点击左上角返回，有时卡死（页面白屏），需要刷新。定位根因并修复。
+
+### 根因
+
+1. **URL 同步与返回导航竞争**：`WorkspaceContent` 用 `setSearchParams` 写入 scheme/representation/selection，本质是一次 router 导航。操作后立刻点返回时，写参数导航可能压过返回导航——返回无效，或 URL 已到 `/` 而工作台仍挂载。
+2. **3D 视图卸载时抛异常**：React passive cleanup 执行前已移除 DOM；`StructureView` 清理调用 `viewer.clear()`，其内部会渲染最后一帧，3Dmol 的 `OffscreenCanvas` 路径抛出 `UnknownError: Failed to create ImageBitmap from OffscreenCanvas`。异常从卸载清理逃逸到 React 卸载提交（dev 日志记录 `An error occurred in the <StructureView> component`）。
+
+### 改动文件
+
+- `frontend/src/features/workspace/WorkspaceContent.tsx`：查询串改用 `window.history.replaceState`（规格本就要求 replaceState），URL 离开 `/entry/` 后跳过写入。
+- `frontend/src/features/structure/StructureView.tsx`：`ResizeObserver` 对 detached / 0 尺寸容器跳过 `resize()`；卸载时 `clear()` 包 try/catch，teardown 不再向 React 抛错。
+- `docs/ROADMAP.md`、本记录。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 修复前复现 | CDP 脚本：24 轮打开→操作→返回 | 5 轮返回失败；dev 日志出现 OffscreenCanvas 异常与 React 组件错误警告 |
+| 修复后压力 | 同上，连续 3 轮 × 24 次 | 72/72 通过；新增客户端错误 0 |
+| 快速连点 | 打开后连续点击返回 3 次 × 15 轮 | 15/15 回到首页，无异常 |
+| 真实 GPU | 同上，`--use-gl=angle --use-angle=gl`（AMD Radeon Vega 8） | 通过，无客户端错误 |
+| 上传后返回 | CIF 上传 1CRN → 返回首页 | 通过 |
+| 深链接恢复 | `/entry/1CRN?chain=A&res=45&scheme=ss&repr=cartoon` | 45 号残基选中，URL 不被覆盖 |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed, 1 warning（Starlette httpx 弃用提示，非本项目） |
+| 前端构建 | `cd frontend && npm run build` | built in 760ms（仅 3Dmol 既有 eval/chunk 警告） |
+| 前端 lint | `cd frontend && npm run lint` | 0 error |
+
+### 问题 / 风险
+
+- OffscreenCanvas 异常属于 3Dmol 2.5.5 内部行为，本项目只做隔离，不修改第三方依赖。
+- 修复分支 `fix/back-navigation-crash` 已合并入 `dev`（未删除分支）。
+- 本机开发服务器仍在运行；合并后的代码已由 Vite HMR 生效。
+
+### 下一步
+
+等待用户下一条测试反馈；每项从 `dev` 开独立分支，用户确认后合并并同步 `ROADMAP` / `DEVLOG`。
 
 ---
 

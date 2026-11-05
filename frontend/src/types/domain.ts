@@ -23,7 +23,9 @@ export type SelectedEntity =
 export const SCHEMES: Scheme[] = [
   'ss',
   'chain',
+  'position',
   'hydrophobicity',
+  'charge',
   'bfactor',
   'element',
 ]

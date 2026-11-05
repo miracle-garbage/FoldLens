@@ -41,7 +41,7 @@ interface WorkspaceContentProps {
 
 export function WorkspaceContent({ analysis }: WorkspaceContentProps) {
   const { t } = useTranslation()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const selection = useAppStore((state) => state.selection)
   const scheme = useAppStore((state) => state.scheme)
   const representation = useAppStore((state) => state.representation)
@@ -113,6 +113,15 @@ export function WorkspaceContent({ analysis }: WorkspaceContentProps) {
     if (!isHydrated) {
       return
     }
+    // Keep the URL in sync with in-workspace state without dispatching a
+    // router navigation. A pending `setSearchParams` navigation can race the
+    // header's back link and leave the URL and the rendered route out of sync
+    // (the back button appears to do nothing, or the workspace stays mounted
+    // at `/`). The spec only requires `replaceState` here, and nothing reads
+    // the search params after mount, so write history directly.
+    if (!window.location.pathname.startsWith('/entry/')) {
+      return
+    }
     const params = new URLSearchParams()
     params.set('scheme', scheme)
     params.set('repr', representation)
@@ -123,8 +132,12 @@ export function WorkspaceContent({ analysis }: WorkspaceContentProps) {
         params.set('ins', selection.insCode)
       }
     }
-    setSearchParams(params, { replace: true })
-  }, [isHydrated, selection, scheme, representation, setSearchParams])
+    const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (currentUrl !== nextUrl) {
+      window.history.replaceState(window.history.state, '', nextUrl)
+    }
+  }, [isHydrated, selection, scheme, representation])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

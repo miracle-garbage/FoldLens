@@ -143,7 +143,17 @@ export function StructureView({
     return () => {
       disposed = true
       if (localViewer) {
-        localViewer.clear()
+        // 3Dmol's clear() ends with a render. React runs passive cleanups
+        // after detaching the subtree, and 3Dmol's OffscreenCanvas path can
+        // throw while drawing the final frame into the detached canvas
+        // ("Failed to create ImageBitmap from OffscreenCanvas"). An exception
+        // here would escape into React's unmount commit, so teardown must
+        // never throw.
+        try {
+          localViewer.clear()
+        } catch {
+          // The viewer is being discarded; skipping its last frame is safe.
+        }
         container.innerHTML = ''
         onViewerReady(null)
       }
@@ -159,7 +169,18 @@ export function StructureView({
     let timer = 0
     const observer = new ResizeObserver(() => {
       window.clearTimeout(timer)
-      timer = window.setTimeout(() => viewer.resize(), 100)
+      timer = window.setTimeout(() => {
+        // Skip zero/detached sizes: resizing to 0 during unmount leaves the
+        // canvas without a drawable image for 3Dmol's final render.
+        if (
+          !container.isConnected ||
+          container.clientWidth === 0 ||
+          container.clientHeight === 0
+        ) {
+          return
+        }
+        viewer.resize()
+      }, 100)
     })
     observer.observe(container)
     return () => {
