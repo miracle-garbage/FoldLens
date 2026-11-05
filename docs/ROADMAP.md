@@ -4,7 +4,7 @@
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
 - 更新日期：2026-11-06
-- 当前焦点：**M0–M4 已完成；测试完善与已批准扩展进行中（T1、T2、EX1 已合并入 `dev`，准备 `beta` 发布）**
+- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、EX1、EX2 已合并入 `dev`**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -234,6 +234,12 @@
   - 新增 **电荷**：ASP/GLU 红（负电）、LYS/ARG 蓝（正电）、其余中性浅灰；HIS 保持中性。
   - 合并：`a80fb22`（`feat/color-schemes`）。
   - 文档同步：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`（Scheme 类型 + 8.12 配色映射表）。
+- [x] **EX2** 跨平台运行与启动自动打开浏览器
+  - Node 实现 `dev.mjs` / `setup.mjs` / `fetch-samples.mjs`；Unix `.sh` 包装与 Windows `.cmd` 包装共用同一逻辑。
+  - `dev.mjs` 等待前端就绪后自动打开默认浏览器；`FOLDLENS_NO_OPEN=1` 或 `--no-open` 可关闭。
+  - Linux 实测通过；Windows 路径已实现，尚未在 Windows 实机验收。
+  - 合并：`9876074`（`feat/cross-platform-launch`）。
+  - 文档同步：`README.md`、`docs/ENVIRONMENT.md`（4.4 Windows）、`AGENTS.md`、`PRODUCT.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`、`docs/DEMO.md`。
 
 ---
 

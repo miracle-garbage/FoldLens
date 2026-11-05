@@ -7,14 +7,15 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；T1/T2/EX1 已合并；发布 `beta`
+- **阶段**：M0–M4 完成；T1/T2/EX1/EX2 已合并；发布 `beta`
 - **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）；`master` 已同步 `dev`
-- **最后验证**：2026-11-06（pytest 22 passed、build 666ms、lint；T2 前后截图、EX1 七种配色与 4HHB 多链渐变检查）
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先
+- **最后验证**：2026-11-06（pytest 22 passed、build 874ms、lint；EX2 在 Linux 实测 setup、自动打开、no-open、进程清理）
 - **最后修复**：2026-11-06（T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
-- **最后新增**：2026-11-06（EX1：残基位置、电荷两种配色）
-- **下一步**：等待用户下一条测试/扩展反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
+- **最后新增**：2026-11-06（EX1：两种配色；EX2：跨平台启动器与自动打开浏览器）
+- **下一步**：等待用户下一条反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
+- **待实机验证**：Windows 的 `setup.cmd` / `dev.cmd` 尚未在 Windows 实机运行（Linux 路径已通过）
 - **阻塞**：无
 - **待用户决定**：
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
@@ -37,6 +38,7 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX2：跨平台启动器与自动打开浏览器 | `9786283` / merge `9876074` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX1：补全残基位置与电荷配色 | `0e2e599` / merge `a80fb22` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T1：修复返回按钮偶发卡死/白屏 | `ee1be9c` + `eac8a28` / merge `dd8ab88` |
@@ -44,6 +46,52 @@
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · EX2：跨平台运行与启动自动打开浏览器
+
+### 目标
+
+1. 项目在 Windows 与 Linux 上都能运行。
+2. 启动命令执行后自动打开默认浏览器，不再手动输入地址。
+
+### 完成内容
+
+- 新增跨平台 Node 实现（无新增依赖）：
+  - `scripts/dev.mjs`：启动后端与 Vite、等待就绪、自动打开浏览器、退出时清理两个进程树。
+  - `scripts/setup.mjs`：跨平台定位 uv，执行 `uv sync --locked --extra dev --python 3.12` 与 `npm install`，再校验样例。
+  - `scripts/fetch-samples.mjs`：用 Node `fetch` 替代 `curl`，保留已存在文件，支持 `--force`。
+- Unix 包装：`setup.sh` / `dev.sh` / `fetch-samples.sh` 改为 source `node-env.sh` 后调用对应 `.mjs`。
+- Windows 包装：新增 `setup.cmd` / `dev.cmd` / `fetch-samples.cmd`。
+- 平台差异：uvicorn 自动解析 `.venv/bin/uvicorn` 或 `.venv\Scripts\uvicorn.exe`，缺失时退回 `python -m uvicorn`；退出时 Unix 杀进程组、Windows 用 `taskkill /T`。
+- Vite 加 `--strictPort`，避免端口漂移导致自动打开错误地址。
+- 自动打开：Linux `xdg-open`、macOS `open`、Windows `start`；`FOLDLENS_NO_OPEN=1` 或 `--no-open` 关闭。
+- `.gitattributes`：`.sh` 固定 LF，`.cmd` 固定 CRLF。
+- 文档同步：README、`docs/ENVIRONMENT.md`（4.4 Windows）、`AGENTS.md`、`PRODUCT.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`、`docs/DEMO.md`。
+
+### 验证（Linux）
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 语法 | `node --check scripts/{dev,setup,fetch-samples}.mjs` | 通过 |
+| 安装 | `./scripts/setup.sh` | 后端/前端安装成功，6 个样例校验通过 |
+| 自动打开 | `./scripts/dev.sh` | 日志 `FoldLens is ready...` → `Opening http://localhost:5173/`；前后端 200 |
+| 关闭自动打开 | `FOLDLENS_NO_OPEN=1 ./scripts/dev.sh` | 输出 `Auto-open disabled`，服务正常 |
+| 清理 | 停止启动器后检查端口/进程 | 5173/8000 释放，无残留 uvicorn/vite |
+| 前端构建 | `npm run build` | built in 874ms |
+| 前端 lint | `npm run lint` | 0 error |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+
+### 问题 / 风险
+
+- Windows 路径按 Node 标准 API 与平台分支实现，但本机为 Linux，**未做 Windows 实机验收**；首次在 Windows 使用需补记结果。
+- 5173 或 8000 被占用时启动器会直接失败（`--strictPort` / uvicorn 绑定错误），不会自动换端口；这是为了避免打开错误地址。
+- 分支 `feat/cross-platform-launch` 已合并入 `dev`，未删除。
+
+### 下一步
+
+等待用户反馈；若有 Windows 环境，实机验证 `scripts\setup.cmd` 与 `scripts\dev.cmd`。
 
 ---
 
