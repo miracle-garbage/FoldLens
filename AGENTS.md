@@ -74,7 +74,7 @@ git log --oneline -5
 | Chromium | 136.0.7103.25，位于 `~/.cache/ms-playwright/chromium-1169/chrome-linux/chrome` |
 | 设计检查器 | `.claude/skills/design-taste-frontend/scripts/inspect.mjs` |
 | Impeccable | 4.8.0，二进制已就位 |
-| Windows | 支持：Node 20.19+/22.12+ + uv；使用 `scripts\*.cmd`（尚未在 Windows 实机验收） |
+| Windows | 支持：Node 20.19+/22.12+ + uv；使用 `scripts\*.cmd`（2026-11-06 已实机确认自动打开） |
 
 **已知环境坑**
 

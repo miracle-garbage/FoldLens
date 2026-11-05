@@ -210,7 +210,7 @@ scripts\dev.cmd
   npm run dev -- --strictPort
   ```
 - `scripts/design-check.sh` 仍以 Linux 的 Chromium 路径书写，不属于运行必需项。
-- **验收状态**：跨平台启动器使用 Node 标准 API 与平台分支实现；Linux 路径已实测，Windows 路径尚未在 Windows 实机上运行验证。首次在 Windows 上使用时请按 `docs/CONVENTIONS.md` 记录验证结果。
+- **验收状态**：Linux 路径已实测；Windows 自动打开已由用户在实机确认（2026-11-06）。
 
 ---
 

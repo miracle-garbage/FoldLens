@@ -4,7 +4,7 @@
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
 - 更新日期：2026-11-06
-- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、EX1、EX2 已合并入 `dev`**
+- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、T3、EX1、EX2 已合并入 `dev`**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -223,6 +223,10 @@
   - Cartoon 厚度 0.4 → 0.25；Stick 半径 0.16 → 0.12；Sphere 缩放 0.28 → 0.22；配体 Stick 0.14 → 0.11；选中叠加同步缩小。
   - 尺寸集中为 `style.ts` 顶部常量。
   - 合并：`3280875`（`fix/model-unit-size`）。
+- [x] **T3** Windows 端执行启动脚本后未自动打开浏览器
+  - 就绪检测同时探测 `localhost` / `127.0.0.1` / `[::1]`；Windows 改用非 detached 的 `cmd /c start "" <url>`，并增加 `rundll32` / `explorer` 回退；未就绪时保留服务并打印手动地址。
+  - 合并：`3473fd8`（`fix/windows-auto-open`）。
+  - 用户在 Windows 实机确认自动打开可用。
 
 ---
 
@@ -237,7 +241,7 @@
 - [x] **EX2** 跨平台运行与启动自动打开浏览器
   - Node 实现 `dev.mjs` / `setup.mjs` / `fetch-samples.mjs`；Unix `.sh` 包装与 Windows `.cmd` 包装共用同一逻辑。
   - `dev.mjs` 等待前端就绪后自动打开默认浏览器；`FOLDLENS_NO_OPEN=1` 或 `--no-open` 可关闭。
-  - Linux 实测通过；Windows 路径已实现，尚未在 Windows 实机验收。
+  - Linux 实测通过；Windows 自动打开已由用户实机确认（见 T3）。
   - 合并：`9876074`（`feat/cross-platform-launch`）。
   - 文档同步：`README.md`、`docs/ENVIRONMENT.md`（4.4 Windows）、`AGENTS.md`、`PRODUCT.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`、`docs/DEMO.md`。
 

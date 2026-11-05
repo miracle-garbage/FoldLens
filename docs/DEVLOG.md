@@ -7,15 +7,15 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；T1/T2/EX1/EX2 已合并；发布 `beta`
+- **阶段**：M0–M4 完成；T1/T2/T3/EX1/EX2 已合并；发布 `beta`
 - **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先
-- **最后验证**：2026-11-06（pytest 22 passed、build 874ms、lint；EX2 在 Linux 实测 setup、自动打开、no-open、进程清理）
-- **最后修复**：2026-11-06（T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）、T3（merge `3473fd8`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先
+- **最后验证**：2026-11-06（pytest 22 passed、build 901ms、lint；T3 Windows 自动打开由用户实机确认）
+- **最后修复**：2026-11-06（T3：Windows 未自动打开浏览器；T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
 - **最后新增**：2026-11-06（EX1：两种配色；EX2：跨平台启动器与自动打开浏览器）
 - **下一步**：等待用户下一条反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
-- **待实机验证**：Windows 的 `setup.cmd` / `dev.cmd` 尚未在 Windows 实机运行（Linux 路径已通过）
+- **平台验证**：Linux 自动化验证通过；Windows 自动打开已由用户实机确认（2026-11-06）
 - **阻塞**：无
 - **待用户决定**：
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
@@ -38,6 +38,7 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | T3：修复 Windows 未自动打开浏览器 | `0f378f2` / merge `3473fd8` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX2：跨平台启动器与自动打开浏览器 | `9786283` / merge `9876074` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX1：补全残基位置与电荷配色 | `0e2e599` / merge `a80fb22` |
@@ -46,6 +47,48 @@
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · T3：修复 Windows 未自动打开浏览器
+
+### 目标
+
+用户报告：Windows 端执行启动脚本后没有自动打开默认浏览器。
+
+### 根因
+
+1. 就绪检测只探测 `http://127.0.0.1:5173/`。Vite 默认绑定 `localhost`，Windows 上可能只解析/绑定到 IPv6 (`::1`)，启动器因此判定前端未就绪，走不到打开浏览器的步骤。
+2. Windows 打开方式使用 `windowsVerbatimArguments` 拼接命令，并以 detached + 隐藏控制台启动 `cmd /c start`；部分 Windows 环境下 `start` 会静默不执行。
+
+### 改动文件
+
+- `scripts/dev.mjs`
+  - 前端就绪同时探测 `localhost`、`127.0.0.1`、`[::1]`，任一可用即可。
+  - Windows 打开改用 Node 正常参数引用：`cmd /c start "" <url>`（空标题作为独立参数），取消 detached。
+  - 增加 `rundll32 url.dll,FileProtocolHandler` 与 `explorer.exe` 两级回退。
+  - 60 秒未探测到前端时不再关闭服务，保留进程并打印手动访问地址。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 语法 | `node --check scripts/dev.mjs` | 通过 |
+| Linux 回归 | `./scripts/dev.sh` | 日志 `FoldLens is ready...` → `Opening ...`；服务持续运行 |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+| 前端构建 | `npm run build` | built in 901ms |
+| 前端 lint | `npm run lint` | 0 error |
+| Windows 实机 | 用户执行 `scripts\dev.cmd` | 确认浏览器自动打开 |
+
+### 问题 / 风险
+
+- Linux 自动打开在无头测试中只会触发 `xdg-open`，实际浏览器行为由用户环境决定。
+- 首次修复自测时误用了已改名的 `waitFor`，导致启动器崩溃并遗留子进程；已修复并清理，后续验证通过。
+- 分支 `fix/windows-auto-open` 已合并入 `dev`，未删除。
+
+### 下一步
+
+推送 `dev` 到远程；等待用户下一条反馈。
 
 ---
 
