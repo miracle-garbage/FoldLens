@@ -109,18 +109,31 @@ function colorForAtom(
   }
 }
 
+/**
+ * Representation sizes. 3Dmol's defaults (cartoon thickness 0.4, stick
+ * radius 0.16, sphere scale 0.28) make ribbons and atoms interpenetrate in
+ * dense structures such as 4HHB and 6M0J, so every unit is reduced while
+ * keeping selection highlights clearly thicker than the base style.
+ */
+const CARTOON_THICKNESS = 0.25
+const STICK_RADIUS = 0.12
+const SPHERE_SCALE = 0.22
+const LIGAND_STICK_RADIUS = 0.11
+const SELECTED_OVERLAY_RADIUS = 0.16
+const SELECTED_STICK_RADIUS = 0.2
+
 function baseStyleFor(
   representation: Representation,
   colorfunc: (atom: AtomSpec) => string,
 ): AtomStyleSpec {
   switch (representation) {
     case 'stick':
-      return { stick: { colorfunc, radius: 0.16 } }
+      return { stick: { colorfunc, radius: STICK_RADIUS } }
     case 'sphere':
-      return { sphere: { colorfunc, scale: 0.28 } }
+      return { sphere: { colorfunc, scale: SPHERE_SCALE } }
     case 'cartoon':
     default:
-      return { cartoon: { colorfunc, thickness: 0.4 } }
+      return { cartoon: { colorfunc, thickness: CARTOON_THICKNESS } }
   }
 }
 
@@ -130,17 +143,25 @@ function selectionStyle(
 ): AtomStyleSpec {
   if (representation === 'cartoon') {
     return {
-      cartoon: { colorfunc, thickness: 0.4 },
-      stick: { color: SELECTED_STYLE.color, radius: 0.22 },
+      cartoon: { colorfunc, thickness: CARTOON_THICKNESS },
+      stick: {
+        color: SELECTED_STYLE.color,
+        radius: SELECTED_OVERLAY_RADIUS,
+      },
     }
   }
   if (representation === 'sphere') {
     return {
-      sphere: { colorfunc, scale: 0.28 },
-      stick: { color: SELECTED_STYLE.color, radius: 0.2 },
+      sphere: { colorfunc, scale: SPHERE_SCALE },
+      stick: {
+        color: SELECTED_STYLE.color,
+        radius: SELECTED_OVERLAY_RADIUS,
+      },
     }
   }
-  return { stick: { color: SELECTED_STYLE.color, radius: 0.28 } }
+  return {
+    stick: { color: SELECTED_STYLE.color, radius: SELECTED_STICK_RADIUS },
+  }
 }
 
 export function applyStructureStyles(
@@ -159,7 +180,7 @@ export function applyStructureStyles(
   viewer.setStyle({}, baseStyleFor(options.representation, colorfunc))
   viewer.setStyle(
     { hetflag: true },
-    { stick: { colorscheme: 'Jmol', radius: 0.14 } },
+    { stick: { colorscheme: 'Jmol', radius: LIGAND_STICK_RADIUS } },
   )
 
   for (const chainId of options.hiddenChains) {
