@@ -4,7 +4,7 @@
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
 - 更新日期：2026-11-06
-- 当前焦点：**M0–M4 已完成；进入用户测试完善阶段（在 `dev` 上按问题分支修复，用户确认后合并）**
+- 当前焦点：**M0–M4 已完成；测试完善与已批准扩展进行中（T1、EX1 已合并入 `dev`）**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -219,6 +219,17 @@
   - 根因二：3D 视图卸载时 `viewer.clear()` 在已脱离文档的容器上渲染，3Dmol `OffscreenCanvas` 抛出未捕获异常，污染 React 卸载提交。
   - 修复：查询串改用 `history.replaceState`（离开 `/entry/` 后跳过）；`ResizeObserver` 跳过 detached/0 尺寸容器；清理时 `clear()` 不允许抛错。
   - 合并：`dd8ab88`（`fix/back-navigation-crash`）。
+
+---
+
+## 已批准扩展（用户明确要求）
+
+- [x] **EX1** 常见 3D 着色方案补全
+  - 保留原有五种：二级结构、链、疏水性、B-factor、元素。
+  - 新增 **残基位置**：每条链内部按残基顺序 N→C 归一化，蓝 → 青 → 绿 → 金 → 朱红。
+  - 新增 **电荷**：ASP/GLU 红（负电）、LYS/ARG 蓝（正电）、其余中性浅灰；HIS 保持中性。
+  - 合并：`a80fb22`（`feat/color-schemes`）。
+  - 文档同步：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`（Scheme 类型 + 8.12 配色映射表）。
 
 ---
 

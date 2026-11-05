@@ -7,13 +7,14 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；进入用户测试完善阶段，按问题分支修复
+- **阶段**：M0–M4 完成；用户测试完善与已批准扩展进行中
 - **发布标签**：`alpha`（标准版首个可演示版本）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1 修复（merge `dd8ab88`）；`master` 仍为 `cc837db`
-- **最后验证**：2026-11-06（pytest 22 passed、build、lint、返回按钮压力测试 3×24 轮 + 三连点，客户端错误 0；SwiftShader 与 AMD GPU 均通过）
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）与 EX1（merge `a80fb22`）；`master` 仍为 `cc837db`
+- **最后验证**：2026-11-06（pytest 22 passed、build 620ms、lint；七种配色切换与 4HHB 多链渐变截图检查）
+- **最后新增**：2026-11-06（EX1：残基位置、电荷两种配色）
 - **最后修复**：2026-11-06（T1：返回按钮偶发卡死/白屏）
-- **下一步**：等待用户下一条测试反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
+- **下一步**：等待用户下一条测试/扩展反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
 - **阻塞**：无
 - **待用户决定**：
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
@@ -36,11 +37,57 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX1：补全残基位置与电荷配色 | `0e2e599` / merge `a80fb22` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T1：修复返回按钮偶发卡死/白屏 | `ee1be9c` + `eac8a28` / merge `dd8ab88` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 修复 dev.sh 在系统 Node 18 下的启动失败 | `master`（见最新提交） |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · EX1：补全常见 3D 着色方案
+
+### 目标
+
+按用户给出的常见配色说明，在标准版五种配色基础上补齐缺失方案。
+
+### 完成内容
+
+- 配色扩展为七种：二级结构、链、**残基位置**、疏水性、**电荷**、B-factor、元素。
+- **残基位置**：每条链内部按残基顺序 N→C 归一化，颜色蓝 → 青 → 绿 → 金 → 朱红；多链结构每条链各自重新开始。
+- **电荷**：ASP/GLU 红（负电）、LYS/ARG 蓝（正电）、其余中性浅灰；HIS 保持中性。
+- 原有五种映射不变（`ss`、`chain`、`hydrophobicity`、`bfactor`、`element`）。
+- 类型、`SCHEMES`、下拉标签、zh/en 文案、URL 校验收口。
+- 文档同步：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`（Scheme 类型、4.4 卸载说明、新增 8.12 配色映射表、URL 写入改为 `history.replaceState` 的契约同步）。
+
+### 关键决策
+
+1. `position` 按链归一化，避免多链结构后段链全部落在红色端。
+2. HIS 在 `charge` 中不标带电：质子化状态依赖环境，标成带电会过度解读数据。
+3. 现有 B-factor 色阶（青 → 金 → 朱红）保持不变；如课程要求蓝色低值 → 红色高值，可再调整。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 七种方案切换 | CDP：1CRN 逐项切换并截图 | 7/7 正常；中英文下拉标签完整 |
+| 多链渐变 | CDP：4HHB `scheme=position` 截图 | 四条链各自 N→C 渐变 |
+| URL 恢复 | `/entry/1CRN?scheme=position&repr=cartoon&chain=A&res=45` | 下拉为 position，45 号残基选中 |
+| 控制台 | CDP 收集异常 | 0 |
+| 前端构建 | `cd frontend && npm run build` | built in 620ms |
+| 前端 lint | `cd frontend && npm run lint` | 0 error |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed, 1 warning（既有 httpx 弃用提示） |
+
+### 问题 / 风险
+
+- 分支 `feat/color-schemes` 已合并入 `dev`，未删除。
+- 3D 截图为开发期验证，未新增文档截图。
+- 未做严格的色彩对比度自动检测；七种方案均在深色观察窗上目视检查。
+
+### 下一步
+
+等待用户下一条测试/扩展反馈；每项从 `dev` 开独立分支，用户确认后合并并同步 `ROADMAP` / `DEVLOG`。
 
 ---
 
