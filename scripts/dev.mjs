@@ -19,7 +19,13 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const IS_WINDOWS = process.platform === 'win32'
-const FRONTEND_READY_URL = 'http://127.0.0.1:5173/'
+// Vite binds to "localhost"; Windows may resolve that to IPv6 only, so probe
+// every local form before deciding the frontend is not ready.
+const FRONTEND_READY_URLS = [
+  'http://localhost:5173/',
+  'http://127.0.0.1:5173/',
+  'http://[::1]:5173/',
+]
 const FRONTEND_URL = 'http://localhost:5173/'
 const BACKEND_HEALTH_URL = 'http://127.0.0.1:8000/api/health'
 const READY_TIMEOUT_MS = 60_000
@@ -141,15 +147,70 @@ async function isReachable(url, timeoutMs = 1_500) {
   }
 }
 
-async function waitFor(url, timeoutMs) {
+async function waitForAny(urls, timeoutMs) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline && !shuttingDown) {
-    if (await isReachable(url)) {
-      return true
+    for (const url of urls) {
+      if (await isReachable(url, 800)) {
+        return true
+      }
     }
     await sleep(POLL_INTERVAL_MS)
   }
   return false
+}
+
+function openWindowsBrowser(url) {
+  // `start` is a cmd builtin. Passing an empty title as its own argument lets
+  // Node quote it as "", which cmd needs so the URL is not treated as a title.
+  // Fall back to the two other documented handlers if cmd cannot be spawned.
+  const attempts = [
+    {
+      command: process.env.ComSpec || 'cmd.exe',
+      args: ['/d', '/s', '/c', 'start', '', url],
+    },
+    { command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', url] },
+    { command: 'explorer.exe', args: [url] },
+  ]
+  let index = 0
+
+  const tryNext = () => {
+    if (index >= attempts.length) {
+      console.log(`Could not open a browser automatically. Open ${url} manually.`)
+      return
+    }
+    const attempt = attempts[index++]
+    let settled = false
+    const fallback = () => {
+      if (!settled) {
+        settled = true
+        tryNext()
+      }
+    }
+    let child
+    try {
+      child = spawn(attempt.command, attempt.args, {
+        stdio: 'ignore',
+        // A detached hidden console can make `start` a no-op on some Windows
+        // setups, so let the opener exit on its own.
+        windowsHide: true,
+      })
+    } catch {
+      fallback()
+      return
+    }
+    child.on('error', fallback)
+    child.on('exit', (code) => {
+      // `start`/rundll32 exit 0 on success; explorer may exit 1 even after it
+      // opened the URL, so only retry while another attempt remains.
+      if (code !== 0 && index < attempts.length) {
+        fallback()
+      }
+    })
+    child.unref()
+  }
+
+  tryNext()
 }
 
 function openBrowser(url) {
@@ -159,27 +220,17 @@ function openBrowser(url) {
   }
   console.log(`Opening ${url} in your default browser...`)
 
-  let command
-  let args
-  const options = {
+  if (IS_WINDOWS) {
+    openWindowsBrowser(url)
+    return
+  }
+
+  const command = process.platform === 'darwin' ? 'open' : 'xdg-open'
+  const child = spawn(command, [url], {
     stdio: 'ignore',
     detached: true,
     windowsHide: true,
-  }
-  if (IS_WINDOWS) {
-    // `start` is a cmd builtin; the empty title keeps the URL as an argument.
-    command = process.env.ComSpec || 'cmd.exe'
-    args = ['/d', '/s', '/c', `start "" "${url}"`]
-    options.windowsVerbatimArguments = true
-  } else if (process.platform === 'darwin') {
-    command = 'open'
-    args = [url]
-  } else {
-    command = 'xdg-open'
-    args = [url]
-  }
-
-  const child = spawn(command, args, options)
+  })
   child.on('error', () => {
     console.log(`Could not open a browser automatically. Open ${url} manually.`)
   })
@@ -232,12 +283,21 @@ launch(
   },
 )
 
-const frontendReady = await waitFor(FRONTEND_READY_URL, READY_TIMEOUT_MS)
+const frontendReady = await waitForAny(
+  FRONTEND_READY_URLS,
+  READY_TIMEOUT_MS,
+)
 if (!frontendReady) {
-  console.error('The frontend did not become ready in time; see the log above.')
-  shutdown(1)
+  console.warn(
+    'The frontend did not answer on localhost / 127.0.0.1 / [::1] in time. ' +
+      'The servers are still running; open ' +
+      `${FRONTEND_URL} manually once Vite reports ready.`,
+  )
 } else {
-  const backendReady = await waitFor(BACKEND_HEALTH_URL, BACKEND_GRACE_MS)
+  const backendReady = await waitForAny(
+    [BACKEND_HEALTH_URL],
+    BACKEND_GRACE_MS,
+  )
   if (!backendReady) {
     console.warn(
       'The frontend is ready but the backend has not answered yet. ' +
