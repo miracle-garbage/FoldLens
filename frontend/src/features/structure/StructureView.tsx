@@ -1,5 +1,12 @@
-import type { AtomSpec, GLViewer } from '3dmol'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type { AtomSpec, GLModel, GLViewer } from '3dmol'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/Button'
@@ -21,7 +28,16 @@ import type {
   Scheme,
 } from '@/types/api'
 import { UI_COLORS } from './colors'
-import { applyStructureStyles, residueForAtom } from './style'
+import {
+  applyBaseStyles,
+  baseStyleFor,
+  createColorContext,
+  createColorFunc,
+  residueForAtom,
+  selectionOverlayStyle,
+  updateSelectionLabel,
+  updateSelectionOverlay,
+} from './style'
 
 interface StructureViewProps {
   analysis: EntryAnalysis
@@ -39,6 +55,12 @@ interface HoverState {
   label: string
   x: number
   y: number
+}
+
+interface ViewerBundle {
+  viewer: GLViewer
+  model: GLModel
+  overlay: GLModel
 }
 
 function ligandForAtom(
@@ -69,7 +91,8 @@ export function StructureView({
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const lastAtomClickRef = useRef(0)
-  const [viewer, setViewer] = useState<GLViewer | null>(null)
+  const didZoomRef = useRef(false)
+  const [bundle, setBundle] = useState<ViewerBundle | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
   const [initFailed, setInitFailed] = useState(false)
   const [hover, setHover] = useState<HoverState | null>(null)
@@ -79,6 +102,31 @@ export function StructureView({
   const structureText =
     textState.status === 'success' ? textState.data : null
   const fileFormat = analysis.meta.structureFormat
+  const viewer = bundle?.viewer ?? null
+
+  const colorContext = useMemo(
+    () => createColorContext(analysis, scheme),
+    [analysis, scheme],
+  )
+  const colorfunc = useMemo(
+    () => createColorFunc(scheme, index, colorContext),
+    [scheme, index, colorContext],
+  )
+  const baseStyle = useMemo(
+    () => baseStyleFor(representation, colorfunc),
+    [representation, colorfunc],
+  )
+  const selectionHidden =
+    selection !== null && hiddenChains.includes(selection.chainId)
+  const overlayStyle = useMemo(
+    () =>
+      selectionOverlayStyle(
+        representation,
+        colorfunc,
+        selectionHidden,
+      ),
+    [representation, colorfunc, selectionHidden],
+  )
 
   const updatePointer = useCallback((event: MouseEvent) => {
     const container = containerRef.current
@@ -104,6 +152,7 @@ export function StructureView({
     }
     let disposed = false
     let localViewer: GLViewer | null = null
+    didZoomRef.current = false
     setIsInitializing(true)
     setInitFailed(false)
 
@@ -125,13 +174,13 @@ export function StructureView({
           backgroundColor: UI_COLORS.viewport,
           antialias: true,
         })
-        created.addModel(structureText, fileFormat)
-        created.zoomTo()
-        created.render()
+        const model = created.addModel(structureText, fileFormat)
+        // Selection highlights live in their own model so restyling them
+        // never invalidates the main structure's cached geometry.
+        const overlay = created.addModel()
         localViewer = created
-        setViewer(created)
+        setBundle({ viewer: created, model, overlay })
         onViewerReady(created)
-        setIsInitializing(false)
       })
       .catch(() => {
         if (!disposed) {
@@ -157,7 +206,7 @@ export function StructureView({
         container.innerHTML = ''
         onViewerReady(null)
       }
-      setViewer(null)
+      setBundle(null)
     }
   }, [structureText, fileFormat, onViewerReady])
 
@@ -263,30 +312,42 @@ export function StructureView({
       : `${selected.ligand.compId} ${selected.ligand.resId}`
     : ''
 
-  useEffect(() => {
-    if (!viewer) {
+  // Base styles change only when the colour scheme, representation, or chain
+  // visibility changes. Selection changes must not run this effect: restyling
+  // the main model would make 3Dmol rebuild the whole structure's geometry.
+  useLayoutEffect(() => {
+    if (!bundle) {
       return
     }
-    applyStructureStyles(viewer, {
-      analysis,
-      index,
-      scheme,
-      representation,
+    applyBaseStyles(bundle.model, baseStyle, hiddenChains)
+    if (!didZoomRef.current) {
+      bundle.viewer.zoomTo()
+      didZoomRef.current = true
+      setIsInitializing(false)
+    }
+    bundle.viewer.render()
+  }, [bundle, baseStyle, hiddenChains])
+
+  // Selection is rendered from a separate one-residue model, so this path
+  // only rebuilds the overlay and relabels the viewer.
+  useLayoutEffect(() => {
+    if (!bundle) {
+      return
+    }
+    updateSelectionOverlay(
+      bundle.overlay,
+      bundle.model,
       selection,
-      hiddenChains,
+      overlayStyle,
+    )
+    updateSelectionLabel(
+      bundle.viewer,
+      bundle.model,
+      selection,
       selectedLabel,
-    })
-    viewer.render()
-  }, [
-    viewer,
-    analysis,
-    index,
-    scheme,
-    representation,
-    selection,
-    hiddenChains,
-    selectedLabel,
-  ])
+    )
+    bundle.viewer.render()
+  }, [bundle, selection, selectedLabel, overlayStyle])
 
   const allHidden =
     index.chains.length > 0 &&

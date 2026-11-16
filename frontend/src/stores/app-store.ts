@@ -41,7 +41,13 @@ export const useAppStore = create<AppState>((set) => ({
   selectResidue: (key) => set({ selection: key }),
   setScheme: (scheme) => set({ scheme }),
   setRepresentation: (representation) => set({ representation }),
-  setHiddenChains: (chains) => set({ hiddenChains: chains }),
+  setHiddenChains: (chains) =>
+    set((state) =>
+      state.hiddenChains.length === chains.length &&
+      state.hiddenChains.every((chainId, index) => chainId === chains[index])
+        ? {}
+        : { hiddenChains: chains },
+    ),
   toggleChain: (chainId) =>
     set((state) => ({
       hiddenChains: state.hiddenChains.includes(chainId)
