@@ -195,6 +195,8 @@ unmount
 - overlay 只画 accent stick；若选中残基所在链被隐藏，overlay 需附带基础表示，保持与原行为一致（选中残基可见）。
 - 颜色标尺（B-factor 范围、残基位置归一化）按 `analysis + scheme` 记忆化，不进入点击路径。
 - 生产构建下，首次进入工作台只允许一次主模型几何构建：先设置样式，再首次 `render()`（开发模式的 StrictMode 双挂载除外）。
+- Viewer 级画质选项集中在 `style.ts` 的 `VIEWER_OPTIONS`：`cartoonQuality: 16`、`ambientOcclusion: { strength: 1.0, radius: 5 }`、`outline: { width: 0.03, maxpixels: 1.2 }`。它们只在创建 viewer 时生效。
+- 3Dmol 2.5.5 使用自带的 WebGL 渲染器、Scene、Camera 与材质，**不是 Three.js**；不要尝试把 Three.js `EffectComposer` / `SSAOPass` 直接接入。画质提升使用 3Dmol 内置的 ambient occlusion、outline 与 `cartoonQuality`。
 - 容器尺寸变化用 `ResizeObserver` → `viewer.resize()`，不重置相机。
 - 组件卸载必须清理 WebGL 上下文。
 

@@ -27,7 +27,6 @@ import type {
   ResidueKey,
   Scheme,
 } from '@/types/api'
-import { UI_COLORS } from './colors'
 import {
   applyBaseStyles,
   baseStyleFor,
@@ -37,6 +36,7 @@ import {
   selectionOverlayStyle,
   updateSelectionLabel,
   updateSelectionOverlay,
+  VIEWER_OPTIONS,
 } from './style'
 
 interface StructureViewProps {
@@ -170,10 +170,7 @@ export function StructureView({
         if (!createViewer) {
           throw new Error('3Dmol createViewer is unavailable.')
         }
-        const created = createViewer(container, {
-          backgroundColor: UI_COLORS.viewport,
-          antialias: true,
-        })
+        const created = createViewer(container, VIEWER_OPTIONS)
         const model = created.addModel(structureText, fileFormat)
         // Selection highlights live in their own model so restyling them
         // never invalidates the main structure's cached geometry.
