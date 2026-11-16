@@ -7,14 +7,14 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；T1/T2/T3/EX1/EX2 已合并；发布 `beta`；结构渲染 A+B 已实现，待验收
+- **阶段**：M0–M4 完成；T1/T2/T3/EX1/EX2 已合并；发布 `beta`；结构渲染 A+B 已合并；画质实验待视觉验收
 - **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）、T3（merge `3473fd8`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先；`perf/structure-rendering` 基于 `dev`（`bddb458`）实现 A+B，未提交、未合并
-- **最后验证**：2026-11-16（frontend lint 0 error、build 793ms、pytest 22 passed；Chromium 截图与 CPU profiler）
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）、T3（merge `3473fd8`）与结构渲染 A+B（merge `4a0b891`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先；`exp/render-visual-quality` 基于 `dev` 实现画质实验，未提交、未合并
+- **最后验证**：2026-11-16（A+B：lint/build/pytest/profiler；画质：lint 0 error、build 811ms、4HHB/6M0J 运行时交互 0 异常）
 - **最后修复**：2026-11-06（T3：Windows 未自动打开浏览器；T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
-- **最后新增**：2026-11-16（结构渲染 A：选中高亮 overlay；B：首屏单次构建与颜色标尺记忆化）
-- **下一步**：用户验收 A+B；确认后合并回 `dev`，再决定是否实施 C/D
+- **最后新增**：2026-11-16（结构渲染 A+B；3Dmol 内置 AO / outline / cartoonQuality 画质实验）
+- **下一步**：用户实机查看画质实验；确认后提交并合并回 `dev`；若仍卡则降低 AO/描边强度
 - **平台验证**：Linux 自动化验证通过；Windows 自动打开已由用户实机确认（2026-11-06）
 - **阻塞**：无
 - **待用户决定**：
@@ -38,7 +38,8 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
-| 2026-11-16 | Claude Code (deepseek-flash[1m]) | 结构渲染 A+B：选中 overlay 与首屏单次构建 | 未提交（`perf/structure-rendering`） |
+| 2026-11-16 | Claude Code (deepseek-flash[1m]) | 结构渲染画质实验：3Dmol AO / outline / quality | 未提交（`exp/render-visual-quality`） |
+| 2026-11-16 | Claude Code (deepseek-flash[1m]) | 结构渲染 A+B：选中 overlay 与首屏单次构建 | `d4f9437` / merge `4a0b891` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T3：修复 Windows 未自动打开浏览器 | `0f378f2` / merge `3473fd8` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX2：跨平台启动器与自动打开浏览器 | `9786283` / merge `9876074` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
@@ -48,6 +49,67 @@
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-16 · Claude Code (deepseek-flash[1m]) · 结构渲染画质实验（VIS-A）
+
+### 目标
+
+在 A+B 性能优化已合并进 `dev` 后，探索是否能在不牺牲流畅度的前提下，让 3D 结构更美观、更有体积感和细腻度。先只做可行性实验，再决定默认参数。
+
+### 调研结论
+
+- **3Dmol 2.5.5 不是 Three.js**：它自带 `WebGL.Renderer`、`Scene`、`Camera`、`Light` 和 Lambert 类材质（`3Dmol.js:21718`、`21728`、`32108`）。Three.js 的 `EffectComposer` / `SSAOPass` / PBR / IBL 不能直接接入。
+- 3Dmol 已内置：
+  - 环境光遮蔽（AO）：`ambientOcclusion: { strength, radius }`。
+  - 描边：`outline: { width, color, maxpixels }`。
+  - cartoon 细分：`cartoonQuality`（默认 10）。
+  - `antialias: true` 时默认 2× 超采样 + FXAA。
+- 光照固定为单方向光，材质无 PBR；要获得 Three.js 级别的棚拍光/材质必须替换渲染器（数周级、高风险），当前范围不做。
+
+### 完成内容
+
+- `frontend/src/features/structure/style.ts`
+  - 新增 `VIEWER_OPTIONS`：`cartoonQuality: 16`、`ambientOcclusion: { strength: 1.0, radius: 5 }`、`outline: { width: 0.03, color: UI_COLORS.viewportGrid, maxpixels: 1.2 }`。
+  - 注释说明参数取舍与 3Dmol 内置能力。
+- `frontend/src/features/structure/StructureView.tsx`
+  - `createViewer(container, VIEWER_OPTIONS)`。
+- `docs/ARCHITECTURE.md` 4.4：记录 viewer 级画质选项与“3Dmol 非 Three.js，不要直接接 EffectComposer”的约束。
+
+### 实验与取舍
+
+| 变体 | 结果 |
+|---|---|
+| AO 0.7 / 4 | 差异很弱，stick/sphere 几乎不可见（RMSE 0.2–0.6） |
+| AO 1.5 / 6 | 体积感明显，但 4HHB 缝隙偏暗、颜色被压重 |
+| AO 1.0 / 5 | 深度感与色彩平衡较合适，选为默认 |
+| `cartoonQuality` 16 | 丝带转折略顺滑；首屏 CPU 约 +20–40ms（4HHB/6M0J），选为默认 |
+| `cartoonQuality` 20 | 视觉收益很小，`setNormals` 成本明显上升（6M0J 86.8ms），不采用 |
+| 描边（muted 灰） | 球状表示出现灰色光环，略像插画 |
+| 描边（viewportGrid 暗色） | 只做边缘分离，球状表示无光环；选为默认 |
+| 3Dmol + Three.js 后处理 | 不可直接接入；2D 包一层无深度、与既有 FXAA 重复，不采用 |
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前端 lint | `npm run lint` | 0 error |
+| 前端构建 | `npm run build` | built in 811ms |
+| 运行时交互 | 4HHB / 6M0J：Cartoon→Stick→Sphere、charge/position/bfactor/ss、隐藏链、改选残基 | 全部正常，0 未捕获异常 / 0 console error |
+| 视觉 | 1CRN × Cartoon/Stick/Sphere、4HHB、6M0J | AO 增加缝隙深度；暗色描边分离边缘；选中 accent stick 与 label 仍清晰 |
+| 参数成本 | CDP CPU profiler | `cartoonQuality` 16：4HHB `setNormals` 21.8→43.5ms；6M0J 32.1→53.3ms；质量 20 更高且收益小 |
+
+### 问题 / 风险
+
+- 无头 Chromium + 真实 GPU 的连续旋转帧率测量不稳定（基线与 AO 版本都出现 250ms 级抖动），无法给出可信的 fps 对比；AO/描边对集成显卡的实际帧率需用户在真实浏览器确认。
+- AO 与描边都是全局渲染效果，会增加每帧开销；若低端机器变卡，优先降低 AO strength / 移除 outline / 回退 cartoonQuality。
+- 描边是最主观的一项；默认使用暗色细描边，若认为偏插画，删除 `VIEWER_OPTIONS.outline` 即可。
+- 分支 `exp/render-visual-quality` 未提交、未合并；未新增依赖。
+
+### 下一步
+
+用户在真实浏览器查看 4HHB / 6M0J 的旋转与选中效果；确认后提交并合并回 `dev`。若观感或流畅度不满意，按上表调整参数或移除对应效果。
 
 ---
 

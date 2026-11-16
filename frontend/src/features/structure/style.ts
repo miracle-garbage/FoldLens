@@ -3,6 +3,7 @@ import type {
   AtomStyleSpec,
   GLModel,
   GLViewer,
+  ViewerSpec,
 } from '3dmol'
 
 import type { ResidueIndex } from '@/lib/residue-index'
@@ -153,6 +154,25 @@ const SPHERE_SCALE = 0.22
 const LIGAND_STICK_RADIUS = 0.11
 const SELECTED_OVERLAY_RADIUS = 0.16
 const SELECTED_STICK_RADIUS = 0.2
+
+/**
+ * Viewer-level quality settings. They are applied once at creation and do not
+ * change the colour scheme or representation sizes.
+ *
+ * - `cartoonQuality` raises the spline subdivision from the default 10 to 16,
+ *   smoothing ribbon turns; 20 was noticeably more expensive for little gain.
+ * - `ambientOcclusion` adds contact shading in crevices, improving depth
+ *   without altering the base token colours.
+ * - `outline` is capped at ~1.2 screen pixels so dense ribbons stay legible
+ *   on the dark viewport without turning the view illustrative.
+ */
+export const VIEWER_OPTIONS: ViewerSpec = {
+  backgroundColor: UI_COLORS.viewport,
+  antialias: true,
+  cartoonQuality: 16,
+  ambientOcclusion: { strength: 1.0, radius: 5 },
+  outline: { width: 0.03, color: UI_COLORS.viewportGrid, maxpixels: 1.2 },
+}
 
 export function baseStyleFor(
   representation: Representation,

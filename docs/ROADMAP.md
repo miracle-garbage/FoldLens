@@ -4,7 +4,7 @@
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
 - 更新日期：2026-11-16
-- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、T3、EX1、EX2 已合并入 `dev`；`perf/structure-rendering` 上完成结构渲染 A+B，待用户验收**
+- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、T3、EX1、EX2 已合并入 `dev`；结构渲染 A+B 已合并入 `dev`；`exp/render-visual-quality` 上完成方案 A 画质实验，待用户视觉验收**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -234,14 +234,18 @@
 
 工作方式：从 `dev` 开 `perf/structure-rendering` 分支；A+B 已实现，用户验收后再合并。
 
-- [~] **PERF1（方案 A）** 选中高亮与主模型解耦
+- [x] **PERF1（方案 A）** 选中高亮与主模型解耦（merge `4a0b891`）
   - 选中残基使用独立 overlay model；点击/方向键选中不再对主模型 `setStyle`，避免 3Dmol 重建整结构几何。
   - overlay 只画 accent stick；选中残基所在链隐藏时附带基础表示，保持原行为。
   - 验证：1CRN / 4HHB / 6M0J × Cartoon/Stick/Sphere、隐藏链、运行时切换配色与表示。
-- [~] **PERF2（方案 B）** 首屏单次几何构建与颜色标尺记忆化
+- [x] **PERF2（方案 B）** 首屏单次几何构建与颜色标尺记忆化（merge `4a0b891`）
   - 移除首次 `render()` 后再全量重设样式的双重建路径；先设置基础样式再首次渲染。
   - B-factor 范围、残基位置归一化按 `analysis + scheme` 记忆化。
   - 移除多余的 `setStyle({}, {})`；`setHiddenChains` 在内容不变时不触发更新。
+- [~] **PERF5（画质实验 VIS-A）** 3Dmol 内置画质提升
+  - 新增 `VIEWER_OPTIONS`：`cartoonQuality: 16`、`ambientOcclusion: { strength: 1.0, radius: 5 }`、暗色细描边 `outline: { width: 0.03, maxpixels: 1.2 }`。
+  - 调研结论：3Dmol 自带 WebGL 渲染器，Three.js `EffectComposer`/`SSAOPass` 无法直接接入；3Dmol 内置 AO/outline/quality 是低风险路径。
+  - 对比：1CRN / 4HHB / 6M0J × Cartoon/Stick/Sphere；待用户实机确认观感与流畅度。
 - [ ] **PERF3（方案 C）** 侧栏接触图 / Ramachandran 静态层与选中层分离（待定）
 - [ ] **PERF4（方案 D）** hover 位置更新 rAF/canvas 降频（待定）
 
