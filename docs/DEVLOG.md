@@ -7,14 +7,14 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；T1/T2/T3/EX1/EX2 已合并；发布 `beta`
+- **阶段**：M0–M4 完成；T1/T2/T3/EX1/EX2 已合并；发布 `beta`；结构渲染 A+B 已实现，待验收
 - **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）、T3（merge `3473fd8`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先
-- **最后验证**：2026-11-06（pytest 22 passed、build 901ms、lint；T3 Windows 自动打开由用户实机确认）
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）、T3（merge `3473fd8`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先；`perf/structure-rendering` 基于 `dev`（`bddb458`）实现 A+B，未提交、未合并
+- **最后验证**：2026-11-16（frontend lint 0 error、build 793ms、pytest 22 passed；Chromium 截图与 CPU profiler）
 - **最后修复**：2026-11-06（T3：Windows 未自动打开浏览器；T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
-- **最后新增**：2026-11-06（EX1：两种配色；EX2：跨平台启动器与自动打开浏览器）
-- **下一步**：等待用户下一条反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
+- **最后新增**：2026-11-16（结构渲染 A：选中高亮 overlay；B：首屏单次构建与颜色标尺记忆化）
+- **下一步**：用户验收 A+B；确认后合并回 `dev`，再决定是否实施 C/D
 - **平台验证**：Linux 自动化验证通过；Windows 自动打开已由用户实机确认（2026-11-06）
 - **阻塞**：无
 - **待用户决定**：
@@ -38,6 +38,7 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-16 | Claude Code (deepseek-flash[1m]) | 结构渲染 A+B：选中 overlay 与首屏单次构建 | 未提交（`perf/structure-rendering`） |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T3：修复 Windows 未自动打开浏览器 | `0f378f2` / merge `3473fd8` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX2：跨平台启动器与自动打开浏览器 | `9786283` / merge `9876074` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
@@ -47,6 +48,69 @@
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-16 · Claude Code (deepseek-flash[1m]) · 结构渲染 A+B：选中 overlay 与首屏单次构建
+
+### 目标
+
+用户反馈蛋白质结构展示渲染很卡。在保持图形质量的前提下优化，先实施方案 A（选中高亮与主模型解耦）与方案 B（首屏单次几何构建、颜色标尺记忆化）。
+
+### 根因
+
+- 3Dmol 的 `GLModel.setStyle` 只要有任何原子变化就执行 `this.molObj = null`，下一次 `render()` 会重建整个模型的几何并 `clone()`。
+- 原实现每次选中残基都对全模型执行 `setStyle({}, {})`、`setStyle({}, base)`、配体/隐藏链/选中样式，导致 1 个残基的高亮触发 4HHB/6M0J 全结构重建。
+- 首屏先 `addModel → zoomTo → render()`（默认样式），样式 effect 再全量重建一次。
+- B-factor 范围与残基位置归一化在每次选中时重复计算。
+
+### 改动文件
+
+- `frontend/src/features/structure/style.ts`
+  - 新增 `createColorContext` / `createColorFunc` / `baseStyleFor` / `applyBaseStyles` / `selectionOverlayStyle` / `updateSelectionOverlay` / `updateSelectionLabel`。
+  - 删除 `applyStructureStyles`、`StructureStyleOptions`、`selectionKeyString`。
+  - `bFactorRange` 改为单次循环，避免展开大数组。
+- `frontend/src/features/structure/StructureView.tsx`
+  - `ViewerBundle` 持有主模型与空 overlay model。
+  - 基础样式 effect（配色/表示/链显隐）与选中 overlay effect 分离；选中变化不再触碰主模型。
+  - 首次样式应用后才 `render()`；`zoomTo` 只执行一次。
+  - 颜色上下文与 style 用 `useMemo` 记忆化。
+- `frontend/src/stores/app-store.ts`
+  - `setHiddenChains` 内容不变时不产生新数组，避免无意义重渲染。
+- `docs/ARCHITECTURE.md` 4.4：同步主模型/overlay 生命周期与“不重建主模型”约束。
+
+### 关键决策
+
+1. overlay 只画 accent stick：cartoon/sphere 下原选中样式的基础表示与基础样式完全相同，stick 表示下 0.2 的 accent stick 覆盖 0.12 基础 stick，视觉等价。
+2. 选中残基所在链被隐藏时，overlay 附带基础表示，保持原实现“选中残基仍可见”的行为。
+3. 不降低 `antialias`、不减少几何细分、不改变配色或尺寸；未新增依赖。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前端 lint | `npm run lint` | 0 error |
+| 前端构建 | `npm run build` | built in 793ms（仅既有 3Dmol eval/chunk 警告） |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed, 1 warning（既有 httpx 弃用提示） |
+| 视觉 | Chromium 截图：1CRN × Cartoon/Stick/Sphere、4HHB、6M0J | 选中 accent stick 与 label 正常，颜色/粗细/遮挡与原版一致 |
+| 隐藏链 | 4HHB 隐藏链 A（选中在 A）；1CRN 全部隐藏 | 与 `dev` 基线截图一致；全部隐藏空态正常 |
+| 运行时切换 | Cartoon→Stick→Sphere；charge/position/bfactor/ss；隐藏后再显示链；改为选中另一残基 | 全部正常，0 未捕获异常 |
+| 点击路径 profiler（4HHB，6 次选中） | CDP CPU profiler | `setNormals` 92.3→31.5ms；`createMolObj` 28.1→10.7ms；`clone` 31.2→10.7ms；GC 147→51.8ms |
+| 点击路径 profiler（6M0J，6 次选中） | CDP CPU profiler | `setNormals` 220.3→29.7ms；`createMolObj` 43.5→11.0ms；GC 203.4→33.0ms |
+| 首屏 profiler（6M0J） | CDP CPU profiler | `createMolObj` 15.6→7.6ms；`setNormals` 45.7→24.1ms |
+| 首屏 profiler（4HHB） | CDP CPU profiler | `createMolObj` 15.0→8.5ms |
+| 控制台 | CDP 收集 exception/console error | 0 |
+
+### 问题 / 风险
+
+- 无头 Chromium 使用 SwiftShader，帧耗时（约 700–1000ms/帧）不代表真实 GPU；因此以 CPU profiler 的几何/法线/GC 时间作为优化依据，未把帧时间当验收指标。
+- 首屏 `readyMs` 不能直接对比：基线在第二次全量重设样式前就隐藏 loading，新版在带正确样式首次渲染后才隐藏。
+- 侧栏接触图 / Ramachandran 仍会在每次选中时全量重绘，序列仍会重渲染全部残基；这些属于方案 C/D，本次未做。
+- 分支 `perf/structure-rendering` 未提交、未合并；`skills-lock.json` 的既有本地修改未动。
+
+### 下一步
+
+用户验收 A+B；确认后合并回 `dev`。若仍感觉卡顿，再决定是否实施 C（侧栏静态层/选中层分离）与 D（hover 降频）。
 
 ---
 

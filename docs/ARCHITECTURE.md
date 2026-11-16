@@ -171,12 +171,18 @@ interface AppState {
 mount
   → 动态 import('3dmol')                    # 懒加载
   → createViewer(container, { backgroundColor:'#0C0F14' })
-  → fetch CIF 文本 → addModel(text, 'cif')
-  → setStyle(默认 cartoon + SS 着色)
-  → zoomTo() → render()
+  → fetch CIF 文本 → addModel(text, 'cif')  # 主模型
+  → addModel()                              # 空 overlay 模型，专用于选中高亮
+  → 主模型 setStyle(基础样式)
+  → zoomTo() → render()                     # 首次 render 即带正确样式
   → setClickable / setHoverable
-update (selection / scheme / representation / hiddenChains)
-  → 重新应用 style → render()
+update
+  ├─ scheme / representation / hiddenChains:
+  │    → 主模型 setStyle → render()          # 3Dmol 会重建主模型几何
+  └─ selection:
+       → overlay.removeAtoms(...) → addAtoms(选中残基原子)
+       → overlay.setStyle(accent stick) → 更新 label → render()
+       # 只重建 1 个残基的 overlay，主模型 molObj 保持缓存
 unmount
   → 断开 ResizeObserver（detached / 0 尺寸不 resize）
   → clear()（异常不得逃逸）→ 清空容器
@@ -184,8 +190,11 @@ unmount
 
 要求：
 
-- `useEffect` 的依赖必须覆盖所有影响样式的状态。
-- 选中高亮不重建整个 viewer；只增删选中残基的 style。
+- `useEffect` / `useLayoutEffect` 的依赖必须覆盖所有影响样式的状态。
+- **选中变化不得对主模型调用 `setStyle`**：3Dmol 的 `GLModel.setStyle` 会把整个模型的 `molObj` 置空，下一次 `render()` 重建全部几何。选中高亮必须走独立的 overlay 模型。
+- overlay 只画 accent stick；若选中残基所在链被隐藏，overlay 需附带基础表示，保持与原行为一致（选中残基可见）。
+- 颜色标尺（B-factor 范围、残基位置归一化）按 `analysis + scheme` 记忆化，不进入点击路径。
+- 生产构建下，首次进入工作台只允许一次主模型几何构建：先设置样式，再首次 `render()`（开发模式的 StrictMode 双挂载除外）。
 - 容器尺寸变化用 `ResizeObserver` → `viewer.resize()`，不重置相机。
 - 组件卸载必须清理 WebGL 上下文。
 

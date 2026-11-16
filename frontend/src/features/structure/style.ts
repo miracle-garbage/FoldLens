@@ -1,5 +1,12 @@
-import type { AtomSpec, AtomStyleSpec, GLViewer } from '3dmol'
+import type {
+  AtomSpec,
+  AtomStyleSpec,
+  GLModel,
+  GLViewer,
+} from '3dmol'
 
+import type { ResidueIndex } from '@/lib/residue-index'
+import { keyString } from '@/lib/residue-index'
 import type {
   EntryAnalysis,
   Representation,
@@ -7,8 +14,6 @@ import type {
   ResidueRecord,
   Scheme,
 } from '@/types/api'
-import type { ResidueIndex } from '@/lib/residue-index'
-import { keyString } from '@/lib/residue-index'
 import {
   SELECTED_STYLE,
   SSE_COLORS,
@@ -20,16 +25,6 @@ import {
   colorForHydrophobicity,
   colorForPosition,
 } from './colors'
-
-export interface StructureStyleOptions {
-  analysis: EntryAnalysis
-  index: ResidueIndex
-  scheme: Scheme
-  representation: Representation
-  selection: ResidueKey | null
-  hiddenChains: string[]
-  selectedLabel: string
-}
 
 export function residueForAtom(
   atom: AtomSpec,
@@ -50,16 +45,21 @@ export function residueForAtom(
 }
 
 function bFactorRange(residues: ResidueRecord[]): [number, number] {
-  const values = residues
-    .map((residue) => residue.bFactor)
-    .filter((value): value is number => value !== null)
-  if (values.length === 0) {
-    return [0, 1]
+  let minimum = Number.POSITIVE_INFINITY
+  let maximum = Number.NEGATIVE_INFINITY
+  let found = false
+  for (const residue of residues) {
+    if (residue.bFactor === null) {
+      continue
+    }
+    found = true
+    minimum = Math.min(minimum, residue.bFactor)
+    maximum = Math.max(maximum, residue.bFactor)
   }
-  return [Math.min(...values), Math.max(...values)]
+  return found ? [minimum, maximum] : [0, 1]
 }
 
-interface PositionScale {
+export interface PositionScale {
   localIndex: Map<string, number>
   totals: Map<string, number>
 }
@@ -75,25 +75,45 @@ function buildPositionScale(residues: ResidueRecord[]): PositionScale {
   return { localIndex, totals }
 }
 
+/**
+ * Per-entry values shared by every atom of a colour scheme. Computing these
+ * once per analysis/scheme keeps them out of the click/selection path.
+ */
+export interface ColorContext {
+  bRange: [number, number]
+  positionScale: PositionScale | null
+}
+
+export function createColorContext(
+  analysis: EntryAnalysis,
+  scheme: Scheme,
+): ColorContext {
+  return {
+    bRange: bFactorRange(analysis.residues),
+    positionScale:
+      scheme === 'position' ? buildPositionScale(analysis.residues) : null,
+  }
+}
+
 function colorForAtom(
   atom: AtomSpec,
-  options: StructureStyleOptions,
-  bRange: [number, number],
-  positionScale: PositionScale | null,
+  scheme: Scheme,
+  index: ResidueIndex,
+  context: ColorContext,
 ): string {
-  const residue = residueForAtom(atom, options.index)
-  switch (options.scheme) {
+  const residue = residueForAtom(atom, index)
+  switch (scheme) {
     case 'ss':
       return residue ? SSE_COLORS[residue.sse] : UI_COLORS.muted
     case 'chain':
       return colorForChain(String(atom.chain ?? ''))
     case 'position': {
-      if (!residue || !positionScale) {
+      if (!residue || !context.positionScale) {
         return UI_COLORS.muted
       }
       return colorForPosition(
-        positionScale.localIndex.get(keyString(residue)) ?? 0,
-        positionScale.totals.get(residue.chainId) ?? 1,
+        context.positionScale.localIndex.get(keyString(residue)) ?? 0,
+        context.positionScale.totals.get(residue.chainId) ?? 1,
       )
     }
     case 'hydrophobicity':
@@ -101,12 +121,24 @@ function colorForAtom(
     case 'charge':
       return colorForCharge(residue?.name3)
     case 'bfactor':
-      return colorForBFactor(residue?.bFactor ?? null, bRange[0], bRange[1])
+      return colorForBFactor(
+        residue?.bFactor ?? null,
+        context.bRange[0],
+        context.bRange[1],
+      )
     case 'element':
       return colorForElement(atom.elem)
     default:
       return UI_COLORS.muted
   }
+}
+
+export function createColorFunc(
+  scheme: Scheme,
+  index: ResidueIndex,
+  context: ColorContext,
+): (atom: AtomSpec) => string {
+  return (atom) => colorForAtom(atom, scheme, index, context)
 }
 
 /**
@@ -122,7 +154,7 @@ const LIGAND_STICK_RADIUS = 0.11
 const SELECTED_OVERLAY_RADIUS = 0.16
 const SELECTED_STICK_RADIUS = 0.2
 
-function baseStyleFor(
+export function baseStyleFor(
   representation: Representation,
   colorfunc: (atom: AtomSpec) => string,
 ): AtomStyleSpec {
@@ -137,77 +169,113 @@ function baseStyleFor(
   }
 }
 
+/** Selected residues use a thicker accent stick in every representation. */
+function selectedStickRadius(representation: Representation): number {
+  return representation === 'stick'
+    ? SELECTED_STICK_RADIUS
+    : SELECTED_OVERLAY_RADIUS
+}
+
+/**
+ * Full style for the accent overlay. When the selected residue's chain is
+ * hidden, the overlay must also carry the base representation so the residue
+ * stays visible instead of degrading to a lone stick.
+ */
 function selectionStyle(
   representation: Representation,
   colorfunc: (atom: AtomSpec) => string,
 ): AtomStyleSpec {
-  if (representation === 'cartoon') {
-    return {
-      cartoon: { colorfunc, thickness: CARTOON_THICKNESS },
-      stick: {
-        color: SELECTED_STYLE.color,
-        radius: SELECTED_OVERLAY_RADIUS,
-      },
-    }
-  }
-  if (representation === 'sphere') {
-    return {
-      sphere: { colorfunc, scale: SPHERE_SCALE },
-      stick: {
-        color: SELECTED_STYLE.color,
-        radius: SELECTED_OVERLAY_RADIUS,
-      },
-    }
-  }
   return {
-    stick: { color: SELECTED_STYLE.color, radius: SELECTED_STICK_RADIUS },
+    ...baseStyleFor(representation, colorfunc),
+    stick: {
+      color: SELECTED_STYLE.color,
+      radius: selectedStickRadius(representation),
+    },
   }
 }
 
-export function applyStructureStyles(
-  viewer: GLViewer,
-  options: StructureStyleOptions,
-): void {
-  const bRange = bFactorRange(options.analysis.residues)
-  const positionScale =
-    options.scheme === 'position'
-      ? buildPositionScale(options.analysis.residues)
-      : null
-  const colorfunc = (atom: AtomSpec) =>
-    colorForAtom(atom, options, bRange, positionScale)
+export function selectionOverlayStyle(
+  representation: Representation,
+  colorfunc: (atom: AtomSpec) => string,
+  includeBaseRepresentation: boolean,
+): AtomStyleSpec {
+  if (includeBaseRepresentation) {
+    return selectionStyle(representation, colorfunc)
+  }
+  return {
+    stick: {
+      color: SELECTED_STYLE.color,
+      radius: selectedStickRadius(representation),
+    },
+  }
+}
 
-  viewer.setStyle({}, {})
-  viewer.setStyle({}, baseStyleFor(options.representation, colorfunc))
-  viewer.setStyle(
+/**
+ * Apply styles to the main structure model only. The selection overlay lives
+ * in a separate model so clicking a residue never invalidates the main
+ * model's cached geometry (3Dmol rebuilds an entire model on any setStyle).
+ */
+export function applyBaseStyles(
+  model: GLModel,
+  baseStyle: AtomStyleSpec,
+  hiddenChains: string[],
+): void {
+  model.setStyle({}, baseStyle)
+  model.setStyle(
     { hetflag: true },
     { stick: { colorscheme: 'Jmol', radius: LIGAND_STICK_RADIUS } },
   )
-
-  for (const chainId of options.hiddenChains) {
-    viewer.setStyle({ chain: chainId }, {})
+  for (const chainId of hiddenChains) {
+    model.setStyle({ chain: chainId }, {})
   }
+}
 
+/**
+ * Rebuild the tiny selection overlay model from the main model's atoms.
+ * Only the overlay's geometry is regenerated, so the cost is proportional to
+ * the selected residue rather than the whole structure.
+ */
+export function updateSelectionOverlay(
+  overlay: GLModel,
+  model: GLModel,
+  selection: ResidueKey | null,
+  style: AtomStyleSpec,
+): boolean {
+  overlay.removeAtoms(overlay.selectedAtoms({}))
+  if (!selection) {
+    return false
+  }
+  const atoms = model.selectedAtoms({
+    chain: selection.chainId,
+    resi: selection.resId,
+  })
+  if (atoms.length === 0) {
+    return false
+  }
+  overlay.addAtoms(atoms)
+  overlay.setStyle({}, style)
+  return true
+}
+
+export function updateSelectionLabel(
+  viewer: GLViewer,
+  model: GLModel,
+  selection: ResidueKey | null,
+  label: string,
+): void {
   viewer.removeAllLabels()
-
-  if (!options.selection) {
+  if (!selection || !label) {
     return
   }
-  const selector = {
-    chain: options.selection.chainId,
-    resi: options.selection.resId,
-  }
-  viewer.setStyle(
-    selector,
-    selectionStyle(options.representation, colorfunc),
-  )
-
-  const atoms = viewer.selectedAtoms(selector)
+  const atoms = model.selectedAtoms({
+    chain: selection.chainId,
+    resi: selection.resId,
+  })
   if (atoms.length === 0) {
     return
   }
-  const anchor =
-    atoms.find((atom) => atom.atom === 'CA') ?? atoms[0]
-  viewer.addLabel(options.selectedLabel, {
+  const anchor = atoms.find((atom) => atom.atom === 'CA') ?? atoms[0]
+  viewer.addLabel(label, {
     position: { x: anchor.x ?? 0, y: anchor.y ?? 0, z: anchor.z ?? 0 },
     backgroundColor: SELECTED_STYLE.color,
     backgroundOpacity: 0.92,
@@ -217,8 +285,4 @@ export function applyStructureStyles(
     inFront: true,
     showBackground: true,
   })
-}
-
-export function selectionKeyString(key: ResidueKey | null): string {
-  return key ? keyString(key) : ''
 }

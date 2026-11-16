@@ -3,8 +3,8 @@
 > 本文是**进度权威**。每次会话结束必须更新勾选状态与“当前焦点”。  
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
-- 更新日期：2026-11-06
-- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、T3、EX1、EX2 已合并入 `dev`**
+- 更新日期：2026-11-16
+- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、T3、EX1、EX2 已合并入 `dev`；`perf/structure-rendering` 上完成结构渲染 A+B，待用户验收**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -227,6 +227,23 @@
   - 就绪检测同时探测 `localhost` / `127.0.0.1` / `[::1]`；Windows 改用非 detached 的 `cmd /c start "" <url>`，并增加 `rundll32` / `explorer` 回退；未就绪时保留服务并打印手动地址。
   - 合并：`3473fd8`（`fix/windows-auto-open`）。
   - 用户在 Windows 实机确认自动打开可用。
+
+---
+
+## 性能优化 · 结构渲染（进行中）
+
+工作方式：从 `dev` 开 `perf/structure-rendering` 分支；A+B 已实现，用户验收后再合并。
+
+- [~] **PERF1（方案 A）** 选中高亮与主模型解耦
+  - 选中残基使用独立 overlay model；点击/方向键选中不再对主模型 `setStyle`，避免 3Dmol 重建整结构几何。
+  - overlay 只画 accent stick；选中残基所在链隐藏时附带基础表示，保持原行为。
+  - 验证：1CRN / 4HHB / 6M0J × Cartoon/Stick/Sphere、隐藏链、运行时切换配色与表示。
+- [~] **PERF2（方案 B）** 首屏单次几何构建与颜色标尺记忆化
+  - 移除首次 `render()` 后再全量重设样式的双重建路径；先设置基础样式再首次渲染。
+  - B-factor 范围、残基位置归一化按 `analysis + scheme` 记忆化。
+  - 移除多余的 `setStyle({}, {})`；`setHiddenChains` 在内容不变时不触发更新。
+- [ ] **PERF3（方案 C）** 侧栏接触图 / Ramachandran 静态层与选中层分离（待定）
+- [ ] **PERF4（方案 D）** hover 位置更新 rAF/canvas 降频（待定）
 
 ---
 
