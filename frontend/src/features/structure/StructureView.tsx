@@ -1,5 +1,10 @@
-import type { AtomSpec, GLViewer } from '3dmol'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/Button'
@@ -15,13 +20,41 @@ import {
 import { useStructureText } from '@/lib/use-entry'
 import type {
   EntryAnalysis,
-  LigandRecord,
   Representation,
   ResidueKey,
   Scheme,
 } from '@/types/api'
-import { UI_COLORS } from './colors'
-import { applyStructureStyles, residueForAtom } from './style'
+
+import { setSubtreeVisibility } from 'molstar/lib/mol-plugin/behavior/static/state'
+import { PluginConfig } from 'molstar/lib/mol-plugin/config'
+import { StateTransforms } from 'molstar/lib/mol-plugin-state/transforms'
+import { PluginContext } from 'molstar/lib/mol-plugin/context'
+import { DefaultPluginSpec } from 'molstar/lib/mol-plugin/spec'
+import { StructureElement } from 'molstar/lib/mol-model/structure'
+import type { Structure } from 'molstar/lib/mol-model/structure'
+import { StateSelection } from 'molstar/lib/mol-state'
+import type { StateTransform } from 'molstar/lib/mol-state'
+import type { ColorTheme } from 'molstar/lib/mol-theme/color'
+
+import { createFoldLensColorThemeProvider } from './molstar-color-theme'
+import {
+  applyViewerOptions,
+  baseRepresentationProps,
+  disableDefaultCameraAxes,
+  firstStructureLocation,
+  hiddenChainsBundle,
+  ligandExpression,
+  ligandRepresentationProps,
+  polymerExpression,
+  residueExpression,
+  residueKeyFromLocation,
+  selectionLabelProps,
+  selectionRepresentationProps,
+} from './molstar-style'
+
+export interface StructureExportHandle {
+  exportPng(): Promise<string>
+}
 
 interface StructureViewProps {
   analysis: EntryAnalysis
@@ -31,8 +64,20 @@ interface StructureViewProps {
   selection: ResidueKey | null
   hiddenChains: string[]
   onSelect: (key: ResidueKey | null) => void
-  onViewerReady: (viewer: GLViewer | null) => void
+  onExportReady: (handle: StructureExportHandle | null) => void
   onShowAllChains: () => void
+}
+
+interface SceneRuntime {
+  plugin: PluginContext
+  structure: Structure
+  structureRef: StateTransform.Ref
+  colorTheme: ColorTheme.Provider
+  polymerRef?: StateTransform.Ref
+  ligandRef?: StateTransform.Ref
+  polymerRepresentationRef?: StateTransform.Ref
+  ligandRepresentationRef?: StateTransform.Ref
+  ligandRepresentationsAdded: boolean
 }
 
 interface HoverState {
@@ -41,18 +86,50 @@ interface HoverState {
   y: number
 }
 
-function ligandForAtom(
-  atom: AtomSpec,
-  analysis: EntryAnalysis,
-): LigandRecord | undefined {
-  if (atom.chain === undefined || atom.resi === undefined) {
-    return undefined
+async function applyHiddenChains(
+  runtime: SceneRuntime,
+  hiddenChains: string[],
+): Promise<void> {
+  const refs = [
+    runtime.polymerRepresentationRef,
+    runtime.ligandRepresentationRef,
+  ].filter((ref): ref is StateTransform.Ref => ref !== undefined)
+  if (refs.length === 0) {
+    return
   }
-  return analysis.meta.ligands.find(
-    (ligand) =>
-      ligand.chainId === String(atom.chain) &&
-      ligand.resId === Number(atom.resi),
-  )
+
+  const layers =
+    hiddenChains.length === 0
+      ? []
+      : [
+          {
+            bundle: hiddenChainsBundle(runtime.structure, hiddenChains),
+            value: 1,
+          },
+        ]
+  const update = runtime.plugin.state.data.build()
+  for (const ref of refs) {
+    const existing = runtime.plugin.state.data.select(
+      StateSelection.Generators.ofTransformer(
+        StateTransforms.Representation.TransparencyStructureRepresentation3DFromBundle,
+        ref,
+      ).withTag('foldlens-hidden-chains'),
+    )
+    if (existing.length > 0) {
+      update.to(existing[0]).update({ layers })
+      for (const duplicate of existing.slice(1)) {
+        update.delete(duplicate)
+      }
+    } else {
+      update.to(ref).apply(
+        StateTransforms.Representation.TransparencyStructureRepresentation3DFromBundle,
+        { layers },
+        { tags: 'foldlens-hidden-chains' },
+      )
+    }
+  }
+  await update.commit({ doNotUpdateCurrent: true })
+  runtime.plugin.canvas3d?.requestDraw()
 }
 
 export function StructureView({
@@ -63,16 +140,26 @@ export function StructureView({
   selection,
   hiddenChains,
   onSelect,
-  onViewerReady,
+  onExportReady,
   onShowAllChains,
 }: StructureViewProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
+  const runtimeRef = useRef<SceneRuntime | null>(null)
+  const selectionRef = useRef<StateTransform.Ref | null>(null)
+  const hiddenChainsRef = useRef(hiddenChains)
   const lastAtomClickRef = useRef(0)
-  const [viewer, setViewer] = useState<GLViewer | null>(null)
+  const pointerRef = useRef({ x: 16, y: 16 })
+  const didInitialRepresentationRef = useRef(false)
+  const onSelectRef = useRef(onSelect)
+  const tRef = useRef(t)
+
+  const [sceneVersion, setSceneVersion] = useState(0)
   const [isInitializing, setIsInitializing] = useState(true)
   const [initFailed, setInitFailed] = useState(false)
+  const [retryNonce, setRetryNonce] = useState(0)
   const [hover, setHover] = useState<HoverState | null>(null)
+
   const { state: textState, retry: retryText } = useStructureText(
     analysis.meta.entryId,
   )
@@ -80,21 +167,28 @@ export function StructureView({
     textState.status === 'success' ? textState.data : null
   const fileFormat = analysis.meta.structureFormat
 
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  }, [onSelect])
+
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
+
+  useEffect(() => {
+    hiddenChainsRef.current = hiddenChains
+  }, [hiddenChains])
+
   const updatePointer = useCallback((event: MouseEvent) => {
     const container = containerRef.current
     if (!container) {
       return
     }
     const bounds = container.getBoundingClientRect()
-    setHover((current) =>
-      current
-        ? {
-            ...current,
-            x: event.clientX - bounds.left,
-            y: event.clientY - bounds.top,
-          }
-        : current,
-    )
+    pointerRef.current = {
+      x: event.clientX - bounds.left,
+      y: event.clientY - bounds.top,
+    }
   }, [])
 
   useEffect(() => {
@@ -102,191 +196,426 @@ export function StructureView({
     if (!structureText || !container) {
       return
     }
+
     let disposed = false
-    let localViewer: GLViewer | null = null
+    let localPlugin: PluginContext | null = null
+    let clickSubscription: { unsubscribe(): void } | null = null
+    let hoverSubscription: { unsubscribe(): void } | null = null
+    let resizeObserver: ResizeObserver | null = null
+
+    runtimeRef.current = null
+    selectionRef.current = null
+    didInitialRepresentationRef.current = false
     setIsInitializing(true)
     setInitFailed(false)
 
-    void import('3dmol')
-      .then((imported) => {
-        if (disposed) {
-          return
+    void (async () => {
+      const spec = DefaultPluginSpec()
+      // The custom React shell owns hover/selection/axes. Leaving Mol*'s
+      // built-in interaction behaviors enabled would add duplicate markings,
+      // camera jumps, and a corner axis widget that DESIGN.md does not allow.
+      const excludedBehaviors = new Set([
+        'camera-axis-helper',
+        'camera-focus-loci',
+        'representation-highlight-loci',
+        'representation-select-loci',
+        'representation-focus-loci',
+        'create-structure-focus-representation',
+      ])
+      spec.behaviors = spec.behaviors.filter(
+        (behavior) =>
+          !excludedBehaviors.has(behavior.transformer.definition.name),
+      )
+      // FoldLens is a local instrument. Accepting the "major performance
+      // caveat" keeps software WebGL (and headless Chromium) working instead
+      // of failing to create a context outright.
+      spec.config = [
+        ...(spec.config ?? []),
+        [PluginConfig.General.AllowMajorPerformanceCaveat, true],
+      ]
+      disableDefaultCameraAxes()
+
+      const plugin = new PluginContext(spec)
+      localPlugin = plugin
+      await plugin.init()
+      if (disposed) {
+        plugin.dispose()
+        return
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.style.width = '100%'
+      canvas.style.height = '100%'
+      canvas.style.display = 'block'
+      canvas.style.touchAction = 'none'
+      container.replaceChildren(canvas)
+
+      const initialized = await plugin.initViewerAsync(canvas, container)
+      if (!initialized) {
+        throw new Error('Mol* viewer initialization failed')
+      }
+      await plugin.canvas3dInitialized
+      if (disposed) {
+        plugin.dispose()
+        return
+      }
+
+      resizeObserver = new ResizeObserver(() => {
+        if (
+          container.isConnected &&
+          container.clientWidth > 0 &&
+          container.clientHeight > 0
+        ) {
+          plugin.handleResize()
         }
-        const fallback = (
-          imported as unknown as {
-            default?: { createViewer: typeof imported.createViewer }
-          }
-        ).default
-        const createViewer = imported.createViewer ?? fallback?.createViewer
-        if (!createViewer) {
-          throw new Error('3Dmol createViewer is unavailable.')
-        }
-        const created = createViewer(container, {
-          backgroundColor: UI_COLORS.viewport,
-          antialias: true,
+      })
+      resizeObserver.observe(container)
+
+      applyViewerOptions(plugin)
+
+      const colorTheme = createFoldLensColorThemeProvider(analysis, index)
+      plugin.representation.structure.themes.colorThemeRegistry.add(
+        colorTheme,
+      )
+
+      const data = await plugin.builders.data.rawData({
+        data: structureText,
+        label: analysis.meta.entryId,
+      })
+      const trajectory = await plugin.builders.structure.parseTrajectory(
+        data,
+        fileFormat === 'pdb' ? 'pdb' : 'mmcif',
+      )
+      const model =
+        await plugin.builders.structure.createModel(trajectory)
+      // The backend analyses the asymmetric unit, so never apply an assembly
+      // preset that would add symmetry mates to the viewport.
+      const structure =
+        await plugin.builders.structure.createStructure(model, {
+          name: 'model',
+          params: {},
         })
-        created.addModel(structureText, fileFormat)
-        created.zoomTo()
-        created.render()
-        localViewer = created
-        setViewer(created)
-        onViewerReady(created)
+
+      if (disposed) {
+        plugin.dispose()
+        return
+      }
+
+      const structureValue = structure.data
+      if (!structureValue) {
+        throw new Error('Mol* structure is unavailable')
+      }
+
+      const polymer =
+        await plugin.builders.structure.tryCreateComponentFromExpression(
+          structure,
+          polymerExpression(),
+          'polymer',
+          { label: 'Polymer' },
+        )
+      const ligand =
+        await plugin.builders.structure.tryCreateComponentFromExpression(
+          structure,
+          ligandExpression(),
+          'ligand',
+          { label: 'Ligand' },
+        )
+
+      if (disposed) {
+        plugin.dispose()
+        return
+      }
+
+      // Frame the whole structure before any representation exists.
+      plugin.managers.camera.focusLoci(
+        StructureElement.Loci.all(structureValue),
+        { durationMs: 0 },
+      )
+
+      runtimeRef.current = {
+        plugin,
+        structure: structureValue,
+        structureRef: structure.ref,
+        colorTheme,
+        polymerRef: polymer?.ref,
+        ligandRef: ligand?.ref,
+        ligandRepresentationsAdded: false,
+      }
+
+      let skipInitialClick = true
+      clickSubscription = plugin.behaviors.interaction.click.subscribe(
+        (event) => {
+          // Mol* uses BehaviorSubjects; subscribing immediately replays the
+          // current (empty) click and would clear the selection restored from
+          // the URL.
+          if (skipInitialClick) {
+            skipInitialClick = false
+            return
+          }
+          lastAtomClickRef.current = performance.now()
+          const location = firstStructureLocation(event.current.loci)
+          if (!location) {
+            onSelectRef.current(null)
+            return
+          }
+          const key = residueKeyFromLocation(location)
+          if (hiddenChainsRef.current.includes(key.chainId)) {
+            onSelectRef.current(null)
+            return
+          }
+          const selected = resolveSelection(index, key)
+          if (selected?.kind === 'residue') {
+            onSelectRef.current(keyOfResidue(selected.residue))
+            return
+          }
+          if (selected?.kind === 'ligand') {
+            onSelectRef.current({
+              chainId: selected.ligand.chainId,
+              resId: selected.ligand.resId,
+              insCode: selected.ligand.insCode,
+            })
+            return
+          }
+          onSelectRef.current(null)
+        },
+      )
+
+      let skipInitialHover = true
+      hoverSubscription = plugin.behaviors.interaction.hover.subscribe(
+        (event) => {
+          if (skipInitialHover) {
+            skipInitialHover = false
+            return
+          }
+          const location = firstStructureLocation(event.current.loci)
+          if (!location) {
+            setHover(null)
+            return
+          }
+          const key = residueKeyFromLocation(location)
+          if (hiddenChainsRef.current.includes(key.chainId)) {
+            setHover(null)
+            return
+          }
+          const selected = resolveSelection(index, key)
+          if (selected?.kind === 'residue') {
+            setHover({
+              label: `${selected.residue.name3} ${formatResidueId(
+                selected.residue.resId,
+                selected.residue.insCode,
+              )} · ${tRef.current(
+                `residue.sse.${selected.residue.sse}`,
+              )}`,
+              ...pointerRef.current,
+            })
+            return
+          }
+          if (selected?.kind === 'ligand') {
+            setHover({
+              label: `${selected.ligand.compId} ${
+                selected.ligand.resId
+              } · ${tRef.current('workspace.structure.ligand')}`,
+              ...pointerRef.current,
+            })
+            return
+          }
+          setHover(null)
+        },
+      )
+
+      onExportReady({
+        exportPng: () => {
+          const screenshot = plugin.helpers.viewportScreenshot
+          if (!screenshot) {
+            return Promise.reject(new Error('Screenshot helper unavailable'))
+          }
+          return screenshot.getImageDataUri()
+        },
+      })
+      setSceneVersion((version) => version + 1)
+    })().catch(() => {
+      if (!disposed) {
+        setInitFailed(true)
         setIsInitializing(false)
-      })
-      .catch(() => {
-        if (!disposed) {
-          setInitFailed(true)
-          setIsInitializing(false)
-        }
-      })
+      }
+    })
 
     return () => {
       disposed = true
-      if (localViewer) {
-        // 3Dmol's clear() ends with a render. React runs passive cleanups
-        // after detaching the subtree, and 3Dmol's OffscreenCanvas path can
-        // throw while drawing the final frame into the detached canvas
-        // ("Failed to create ImageBitmap from OffscreenCanvas"). An exception
-        // here would escape into React's unmount commit, so teardown must
-        // never throw.
+      resizeObserver?.disconnect()
+      clickSubscription?.unsubscribe()
+      hoverSubscription?.unsubscribe()
+      runtimeRef.current = null
+      selectionRef.current = null
+      onExportReady(null)
+      if (localPlugin) {
         try {
-          localViewer.clear()
+          localPlugin.dispose()
         } catch {
-          // The viewer is being discarded; skipping its last frame is safe.
+          // The viewer is being discarded; teardown must not throw.
         }
-        container.innerHTML = ''
-        onViewerReady(null)
       }
-      setViewer(null)
+      container.replaceChildren()
     }
-  }, [structureText, fileFormat, onViewerReady])
+  }, [
+    structureText,
+    fileFormat,
+    analysis,
+    index,
+    onExportReady,
+    retryNonce,
+  ])
 
-  useEffect(() => {
-    const container = containerRef.current
-    if (!viewer || !container) {
+  // Polymer and ligand use one component each. Chain hiding is expressed as a
+  // transparency layer, so toggling a chain never rebuilds the structure.
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current
+    if (!runtime) {
       return
     }
-    let timer = 0
-    const observer = new ResizeObserver(() => {
-      window.clearTimeout(timer)
-      timer = window.setTimeout(() => {
-        // Skip zero/detached sizes: resizing to 0 during unmount leaves the
-        // canvas without a drawable image for 3Dmol's final render.
+    let cancelled = false
+
+    void (async () => {
+      try {
+        if (runtime.polymerRef) {
+          const polymerRepresentation =
+            await runtime.plugin.builders.structure.representation.addRepresentation(
+              runtime.polymerRef,
+              baseRepresentationProps(
+                representation,
+                runtime.colorTheme,
+                scheme,
+              ),
+              { tag: 'polymer-representation' },
+            )
+          if (cancelled) {
+            return
+          }
+          runtime.polymerRepresentationRef =
+            polymerRepresentation?.ref
+          await applyHiddenChains(runtime, hiddenChainsRef.current)
+          runtime.plugin.canvas3d?.requestDraw()
+        }
+
+        if (!didInitialRepresentationRef.current) {
+          didInitialRepresentationRef.current = true
+          setIsInitializing(false)
+        }
+
         if (
-          !container.isConnected ||
-          container.clientWidth === 0 ||
-          container.clientHeight === 0
+          runtime.ligandRepresentationsAdded ||
+          !runtime.ligandRef ||
+          cancelled
         ) {
           return
         }
-        viewer.resize()
-      }, 100)
-    })
-    observer.observe(container)
-    return () => {
-      observer.disconnect()
-      window.clearTimeout(timer)
-    }
-  }, [viewer])
 
-  useEffect(() => {
-    if (!viewer) {
-      return
-    }
-    viewer.setClickable({}, true, (atom: AtomSpec) => {
-      lastAtomClickRef.current = performance.now()
-      const residue = residueForAtom(atom, index)
-      if (residue) {
-        onSelect(keyOfResidue(residue))
-        return
-      }
-      const ligand = ligandForAtom(atom, analysis)
-      if (ligand) {
-        onSelect({
-          chainId: ligand.chainId,
-          resId: ligand.resId,
-          insCode: ligand.insCode,
-        })
-        return
-      }
-      onSelect(null)
-    })
-    viewer.setHoverable(
-      {},
-      true,
-      (atom: AtomSpec) => {
-        const residue = residueForAtom(atom, index)
-        if (residue) {
-          setHover((current) => ({
-            label: `${residue.name3} ${formatResidueId(
-              residue.resId,
-              residue.insCode,
-            )} · ${t(`residue.sse.${residue.sse}`)}`,
-            x: current?.x ?? 16,
-            y: current?.y ?? 16,
-          }))
+        const ligandRepresentation =
+          await runtime.plugin.builders.structure.representation.addRepresentation(
+            runtime.ligandRef,
+            ligandRepresentationProps(runtime.colorTheme),
+            { tag: 'ligand-representation' },
+          )
+        if (cancelled) {
           return
         }
-        const ligand = ligandForAtom(atom, analysis)
-        if (ligand) {
-          setHover((current) => ({
-            label: `${ligand.compId} ${ligand.resId} · ${t(
-              'workspace.structure.ligand',
-            )}`,
-            x: current?.x ?? 16,
-            y: current?.y ?? 16,
-          }))
-          return
+        runtime.ligandRepresentationRef = ligandRepresentation?.ref
+        runtime.ligandRepresentationsAdded = true
+        await applyHiddenChains(runtime, hiddenChainsRef.current)
+        runtime.plugin.canvas3d?.requestDraw()
+      } catch {
+        if (!cancelled) {
+          setInitFailed(true)
+          setIsInitializing(false)
         }
-        setHover(null)
-      },
-      () => setHover(null),
-    )
+      }
+    })()
+
     return () => {
-      viewer.setClickable({}, false, () => undefined)
-      viewer.setHoverable(
-        {},
-        false,
-        () => undefined,
-        () => undefined,
-      )
+      cancelled = true
     }
-  }, [viewer, index, analysis, onSelect, t])
+  }, [sceneVersion, scheme, representation])
 
-  const selected = resolveSelection(index, selection)
-  const selectedLabel = selected
-    ? selected.kind === 'residue'
-      ? `${selected.residue.name3} ${formatResidueId(
-          selected.residue.resId,
-          selected.residue.insCode,
-        )}`
-      : `${selected.ligand.compId} ${selected.ligand.resId}`
-    : ''
-
-  useEffect(() => {
-    if (!viewer) {
+  // Hidden chains become fully transparent; geometry and picking stay intact,
+  // and click/hover ignore them explicitly.
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current
+    if (!runtime) {
       return
     }
-    applyStructureStyles(viewer, {
-      analysis,
-      index,
-      scheme,
-      representation,
-      selection,
-      hiddenChains,
-      selectedLabel,
-    })
-    viewer.render()
-  }, [
-    viewer,
-    analysis,
-    index,
-    scheme,
-    representation,
-    selection,
-    hiddenChains,
-    selectedLabel,
-  ])
+    void applyHiddenChains(runtime, hiddenChains).catch(() => undefined)
+  }, [sceneVersion, hiddenChains])
+
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current
+    if (!runtime) {
+      return
+    }
+    let cancelled = false
+
+    void (async () => {
+      try {
+        if (!selection) {
+          if (selectionRef.current) {
+            setSubtreeVisibility(
+              runtime.plugin.state.data,
+              selectionRef.current,
+              true,
+            )
+            runtime.plugin.canvas3d?.requestDraw()
+          }
+          return
+        }
+
+        const selected = resolveSelection(index, selection)
+        if (!selected) {
+          return
+        }
+
+        const expression =
+          selected.kind === 'residue'
+            ? residueExpression(keyOfResidue(selected.residue))
+            : residueExpression(selected.ligand, selected.ligand.compId)
+
+        const component =
+          await runtime.plugin.builders.structure.tryCreateComponentFromExpression(
+            runtime.structureRef,
+            expression,
+            'selection',
+            { label: 'Selection' },
+          )
+        if (cancelled || !component) {
+          return
+        }
+
+        if (selectionRef.current !== component.ref) {
+          selectionRef.current = component.ref
+          await runtime.plugin.builders.structure.representation.addRepresentation(
+            component,
+            selectionRepresentationProps(),
+            { tag: 'selection-stick' },
+          )
+          await runtime.plugin.builders.structure.representation.addRepresentation(
+            component,
+            selectionLabelProps(),
+            { tag: 'selection-label' },
+          )
+        }
+        setSubtreeVisibility(
+          runtime.plugin.state.data,
+          component.ref,
+          false,
+        )
+        runtime.plugin.canvas3d?.requestDraw()
+      } catch {
+        // A stale selection during teardown is safe to ignore.
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [sceneVersion, selection, index])
 
   const allHidden =
     index.chains.length > 0 &&
@@ -297,6 +626,10 @@ export function StructureView({
       return
     }
     onSelect(null)
+  }
+
+  const handleRetry = () => {
+    setRetryNonce((nonce) => nonce + 1)
   }
 
   return (
@@ -352,7 +685,7 @@ export function StructureView({
             <p className="text-body-s text-danger">
               {t('workspace.structure.error')}
             </p>
-            <Button onClick={retryText} className="w-fit">
+            <Button onClick={handleRetry} className="w-fit">
               {t('workspace.structure.retry')}
             </Button>
           </div>

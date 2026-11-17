@@ -7,16 +7,18 @@
 
 ## 当前状态
 
-- **阶段**：M0–M4 完成；T1/T2/EX1 已合并；发布 `beta`
+- **阶段**：M0–M4 完成；T1/T2/T3/EX1/EX2 已合并；发布 `beta`；结构渲染 A+B 与 VIS-A 已合并；**Mol* 5.13.1 已正式替换 3Dmol，功能/性能验收通过，待提交/合并**
 - **发布标签**：`beta`（测试完善后的可演示版本；`alpha` 保留）
 - **代码**：`frontend/`、`backend/`、`data/`、`scripts/` 均已建；6 个样例与缩略图入库
-- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）；`master` 已同步 `dev`
-- **最后验证**：2026-11-06（pytest 22 passed、build 666ms、lint；T2 前后截图、EX1 七种配色与 4HHB 多链渐变检查）
-- **最后修复**：2026-11-06（T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
-- **最后新增**：2026-11-06（EX1：残基位置、电荷两种配色）
-- **下一步**：等待用户下一条测试/扩展反馈；每项从 `dev` 开分支，用户确认后合并并更新文档
+- **分支**：`dev` 已含 T1（merge `dd8ab88`）、EX1（merge `a80fb22`）、T2（merge `3280875`）、EX2（merge `9876074`）、T3（merge `3473fd8`）、结构渲染 A+B（merge `4a0b891`）与画质实验（merge `69df771`）；`master` 停在 `beta`（`4f1a8e9`），`dev` 领先；`feat/molstar-renderer` 基于 `dev`，未提交、未合并
+- **最后验证**：2026-11-17（Mol* 正式替换：typecheck/lint/build/pytest/设计检查/24 URL 矩阵/交互/链显隐/PNG/上传 PDB/离线；生产预览 1CRN≈2.44s、1L2Y≈2.65s、6M0J≈4.49s、4HHB≈5.31s）
+- **最后修复**：2026-11-06（T3：Windows 未自动打开浏览器；T2：密集结构穿模；T1：返回按钮偶发卡死/白屏）
+- **最后新增**：2026-11-17（Mol* 5.13.1 正式渲染引擎；移除 3Dmol；pooled component + Transparency 链显隐 + 首帧优先；Transparency bundle union 修复）
+- **下一步**：用户在真实浏览器复核 Mol* 观感与流畅度；确认后 commit 并合并回 `dev`。若继续优化，优先处理 Mol* chunk 体积与 Vite CommonJS 兼容层
+- **平台验证**：Linux 自动化验证通过；Windows 自动打开已由用户实机确认（2026-11-06）；Mol* 渲染路径尚未在 Windows 验证
 - **阻塞**：无
 - **待用户决定**：
+  - 是否 commit 并合并 `feat/molstar-renderer` 回 `dev`
   - 是否将 `~/.local/bin` 加入 PATH（默认不改）
   - 是否保留本机 statusline 辅助脚本（不影响项目仓库）
 
@@ -37,6 +39,12 @@
 
 | 日期 | 模型/工具 | 摘要 | 提交 |
 |---|---|---|---|
+| 2026-11-17 | Claude Code (deepseek-flash[1m]) | Mol* 正式替换 3Dmol + 冷启动/链显隐优化 | 未提交（`feat/molstar-renderer`） |
+| 2026-11-17 | Claude Code (deepseek-flash[1m]) | Mol* 渲染引擎 spike（方案 B） | 未提交（`spike/molstar-renderer`） |
+| 2026-11-16 | Claude Code (deepseek-flash[1m]) | 结构渲染画质实验：3Dmol AO / outline / quality | merge `69df771` |
+| 2026-11-16 | Claude Code (deepseek-flash[1m]) | 结构渲染 A+B：选中 overlay 与首屏单次构建 | `d4f9437` / merge `4a0b891` |
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | T3：修复 Windows 未自动打开浏览器 | `0f378f2` / merge `3473fd8` |
+| 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX2：跨平台启动器与自动打开浏览器 | `9786283` / merge `9876074` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T2：缩小 3D 模型单位，减轻穿模 | `ba82bb0` / merge `3280875` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | EX1：补全残基位置与电荷配色 | `0e2e599` / merge `a80fb22` |
 | 2026-11-06 | Claude Code (deepseek-flash[1m]) | T1：修复返回按钮偶发卡死/白屏 | `ee1be9c` + `eac8a28` / merge `dd8ab88` |
@@ -44,6 +52,373 @@
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 实现标准版 M1–M4，完成本机验收 | `6eef7ce` / merge `a7b7078` |
 | 2026-11-05 | Claude Code (deepseek-flash[1m]) | 更正课程归属：纯生物信息学，移除医学 AI 表述 | `93fc80c` |
 | 2026-11-04 | Claude Code (deepseek-flash[1m]) | 需求定稿、环境验证、文档体系建立 | `93fc80c` |
+
+---
+
+## 2026-11-17 · Claude Code (deepseek-flash[1m]) · Mol* 正式替换 3Dmol 与性能优化
+
+### 目标
+
+用户确认“效果还行”后，把 Mol* 从 spike 提升为唯一渲染引擎，移除 3Dmol 双路径，并解决 4HHB 冷启动与链显隐卡顿。
+
+### 最终架构
+
+- 分支：`feat/molstar-renderer`（由 `spike/molstar-renderer` 重命名，未提交）。
+- 生产路径只使用 Mol* 5.13.1；`3dmol` 依赖、旧 `style.ts`、`?renderer=molstar` flag 已删除。
+- `StructureView.tsx` 直接基于 `PluginContext` + `DefaultPluginSpec` + `Canvas3D`，由 React 外壳负责 UI/i18n/三态/导出。
+- **一个 polymer component + 一个 ligand component**：不再按链拆组件；按链拆会让 4HHB 冷启动明显变慢。
+- **链显隐用 Transparency layer**：对 polymer/ligand representation 应用 `TransparencyStructureRepresentation3DFromBundle`（value 1），隐藏链不重建几何；点击/hover 通过 `hiddenChainsRef` 过滤隐藏链。
+- **首帧优先**：先添加 polymer representation 并结束 loading，再异步添加 ligand representation；ligand 的 ball-and-stick 几何/着色器编译不再阻塞首帧。
+- 选中仍使用独立 selection component + accent stick + label；选中变化不触碰 polymer/ligand。
+- 相机在组件创建后、representation 之前用 `StructureElement.Loci.all(structure)` 对整结构取景。
+- 保留 Vite CommonJS alias（Mol* ESM 命名空间循环依赖）；在 `vite.config.ts` 中注明升级 Mol* 时重新验证。
+- Mol* 内置 UI、MVS、视频导出均未引入。
+
+### 改动文件
+
+- `frontend/src/features/structure/StructureView.tsx`：Mol* 视图、组件/representation/Transparency/选中/交互/三态。
+- `frontend/src/features/structure/molstar-color-theme.ts`：七种配色的自定义 ColorTheme；颜色上下文从旧 `style.ts` 迁入。
+- `frontend/src/features/structure/molstar-style.ts`：viewer 选项、representation 参数、chain/ligand/residue 表达式、hidden-chain bundle、loci 映射。
+- `frontend/src/features/workspace/WorkspaceContent.tsx`：移除 3Dmol/`?renderer` 分支，懒加载 `StructureView`，PNG 走统一导出句柄。
+- `frontend/package.json` / `package-lock.json`：移除 `3dmol`，保留 `molstar@5.13.1`。
+- `frontend/vite.config.ts`：CommonJS alias 注释改为正式兼容层说明。
+- 删除 `frontend/src/features/structure/style.ts`。
+- 文档：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`、`docs/ENVIRONMENT.md`、`docs/ROADMAP.md`、本文件。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前端类型检查 | `npm run typecheck` | 通过 |
+| 前端 lint | `npm run lint` | 通过 |
+| 前端构建 | `npm run build` | built in 2.05s；主包 398.57 kB / 125.47 kB gzip；`StructureView` 3,788.82 kB / 986.53 kB gzip；**无 3Dmol chunk，无 3Dmol direct-eval 警告** |
+| 后端测试 | `backend/.venv/bin/pytest -q` | 22 passed（既有 httpx 弃用 warning） |
+| 设计检查（生产预览） | `./scripts/design-check.sh` | 首页 0 FAIL / 1 已知 `still-page` WARN；工作台 0 FAIL / 0 WARN |
+| 冷启动（无头 Chromium + SwiftShader，生产预览） | route mount → canvas 就绪 | 1CRN ≈2.44s；1L2Y ≈2.65s；6M0J ≈4.49s；4HHB ≈5.31s |
+| 链显隐延迟（4HHB） | 取消/恢复链 A | 隐藏约 45ms，恢复约 5ms；不重建几何 |
+| 功能矩阵 | 1CRN × 7 配色 × 3 表示 + 4HHB/6M0J/1L2Y | 24 个 URL 全部成功，0 未捕获异常 / 0 console error |
+| 交互 | 点击 / hover / 背景清空 / 序列点击 / URL 恢复 | 残基卡、序列、Ramachandran、3D overlay 同步 |
+| 导航 | 返回首页 → 浏览器后退 | 条目、选中、scheme/repr 恢复；0 异常 |
+| PNG | UI 点击“PNG 截图” | 生成 166,782 字符 PNG data URI；Toast 正常 |
+| 上传 PDB | 上传由 1CRN 转出的 PDB | 进入 `upload-*` 工作台，Mol* 正常渲染 |
+| 离线 | CDP Network 收集 | 仅 `127.0.0.1:4173/8000`，无外部 CDN/字体/worker |
+| 响应式 | 390 / 768 / 1440 | 3D 视图按容器 resize；上下堆叠正常 |
+| 1L2Y 多 model | 打开 1L2Y | 只显示 model 1 |
+
+### 问题 / 风险
+
+- **Vite CommonJS alias**：Mol* 5.13 ESM 在 Vite 8 预打包下会触发 `BuiltInPluginBehaviors` 命名空间未初始化；当前 alias 是正式兼容层，升级 Mol* 时必须重新验证。
+- **Mol* chunk 较大**：约 986KB gzip，首页不受影响；工作台冷启动需下载/解析该 chunk。
+- **隐藏链仍在几何中**：Transparency 只让链不可见，点击/hover 已在应用层过滤；如果未来需要释放内存或彻底移出 picking，仍需 per-chain component 或重建方案。
+- **插入码未单独验证**：Mol* 已暴露 `pdbx_PDB_ins_code`，6 个样例无插入码；新增插入码样例时需补测。
+- **真实 GPU 帧率未计量**：冷启动/链显隐数据来自无头 Chromium + SwiftShader；真实集成显卡的旋转帧率需用户实机体验。
+- **Windows 未验证**：Mol* 渲染路径尚未在 Windows 实机运行。
+- **未提交**：分支和改动均未 commit；`skills-lock.json` 的既有本地修改未动。
+
+### 更正
+
+- 上一条 2026-11-17 spike 记录中的 `spike/molstar-renderer` 分支与 `?renderer=molstar` flag 已不再适用：分支已重命名为 `feat/molstar-renderer`，flag 已移除，3Dmol 依赖已删除。
+
+### 下一步
+
+1. 用户真实浏览器复核 Mol* 观感与旋转/缩放流畅度。
+2. 用户确认后 commit 并合并 `feat/molstar-renderer` 回 `dev`。
+3. 若继续优化：评估 Mol* 自定义 spec/裁剪以降低 986KB chunk；验证 Windows 与插入码样例。
+
+### 补充（同日）：Transparency 链隐藏 union 修复
+
+- **问题**：首次实现链显隐时，`StructureElement.Loci.fromExpression(structure, MS.struct.modifier.union(hiddenChains.map(chainExpression)))` 在 4HHB 上只返回第一条链的 loci（1224 个原子），而不是 B+C+D 的 3611 个原子；因此隐藏链看起来仍在画布上。
+- **修复**：改为逐链 `StructureElement.Loci.fromExpression`，再用 `StructureElement.Loci.union` 累积，最后 `StructureElement.Bundle.fromLoci`。
+- **附带修复**：Transparency transform 之前每次调用都会新增一个 child cell；改为先用 `StateSelection.Generators.ofTransformer(...).withTag('foldlens-hidden-chains')` 查找并更新已有 cell，同时删除重复 cell。
+- **验证**：生产预览（4173）上 4HHB 只勾选链 A 时，Cartoon / Stick / Sphere 三种表示均只显示链 A；切回“全部”后恢复四链；0 异常。最终 24 URL 矩阵、交互、PNG、上传 PDB、离线、设计检查均通过。
+- **最终构建**：`StructureView-CkJ1x-hV.js` 3,788.82 kB / 986.53 kB gzip；主包 398.57 kB / 125.47 kB gzip。
+
+---
+
+## 2026-11-17 · Claude Code (deepseek-flash[1m]) · Mol* 渲染引擎 spike（方案 B）
+
+### 目标
+
+在不改动 3Dmol 生产路径的前提下，用 feature flag 接入 Mol* `5.13.1`，验证它能否提升观感，并量化对 1CRN / 4HHB / 6M0J 的启动与交互性能影响。只做 spike，不合并、不提交。
+
+### 分支与入口
+
+- 分支：`spike/molstar-renderer`（基于 `dev`，未提交）。
+- 入口：`/entry/{id}?renderer=molstar`；不带该参数时仍走 3Dmol。
+- URL 同步与复制链接会保留 `renderer=molstar`。
+
+### 改动文件
+
+- `frontend/package.json` / `frontend/package-lock.json`：新增并锁定 `molstar@5.13.1`。
+- `frontend/vite.config.ts`：临时把 `molstar/lib/*` 别名到 `molstar/lib/commonjs/*`，绕过 Vite 8 预打包下 Mol* ESM 命名空间循环依赖导致的 `BuiltInPluginBehaviors` 未初始化错误。
+- `frontend/src/features/structure/MolstarView.tsx`：新的 Mol* 视图；复用现有 props/三态/空态/i18n/hover 文案。
+- `frontend/src/features/structure/molstar-color-theme.ts`：把七种配色映射到 FoldLens token 的自定义 `ColorTheme`。
+- `frontend/src/features/structure/molstar-style.ts`：Mol* viewer/representation 参数、链/残基 MolScript 表达式、位置映射。
+- `frontend/src/features/workspace/WorkspaceContent.tsx`：`?renderer=molstar` 懒加载分支、PNG 句柄、URL/复制链接保留 flag。
+- 未改后端、样例数据、设计 token 或 3Dmol 路径。
+
+### 关键决策
+
+1. **不用 Mol* 自带 UI**：只用 `PluginContext` + `Canvas3D` + 现有 React 外壳，避免绕过 i18n/DESIGN token，也避免把完整 viewer/UI 打进 bundle。
+2. **显式禁用 Mol* 交互行为**：过滤 `camera-axis-helper`、`camera-focus-loci`、`representation-highlight-loci`、`representation-select-loci`、`representation-focus-loci`、`create-structure-focus-representation`，由 FoldLens 自己处理点击/hover/选中，避免重复标记和相机跳动。
+3. **按链建组件**：每条链一个 polymer component + ligand component，链显隐使用 `setSubtreeVisibility`。这保证 4HHB 链显隐可用，但也是 4HHB 冷启动偏慢的主要嫌疑。
+4. **配色**：自定义 `foldlens` 主题直接复用 `colors.ts` 的七种 scheme；配体用 `scheme='element'`，不再依赖 Mol* 默认 Jmol 色。
+5. **表示映射**：Cartoon → `cartoon`；Stick → `ball-and-stick` 但关闭 element-sphere，只保留 bonds，贴近 3Dmol 的纯 stick；Sphere → `spacefill` sizeFactor 0.22。
+6. **水体不渲染**：Mol* 下水的 ball-and-stick 在深色背景上形成明显红点，与 3Dmol 的观感不一致，spike 直接省略 water component。
+7. **相机轴**：Mol* 5.13 的 `axes: off` 只改 flag、不清除已创建的 helper mesh；在创建 `Canvas3D` 前把 `DefaultCanvas3DParams.camera.helper.axes.name` 置为 `off`。
+8. **软件 WebGL**：允许 `AllowMajorPerformanceCaveat`，否则无头 Chromium（SwiftShader）无法创建 Mol* context；真实 GPU 不受影响。
+9. **只解析 model 1**：`createStructure(model, { name: 'model' })`，避免 Mol* 自动应用 biological assembly；1L2Y 的 38 个 NMR model 只显示第一个。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前端类型检查 | `npm run typecheck` | 通过 |
+| 前端 lint | `npm run lint` | 通过 |
+| 前端构建 | `npm run build` | built in 1.51s；`MolstarView` chunk 3,787.11 kB raw / 986.25 kB gzip；3Dmol chunk 574.06 kB / 164.01 kB；主包 405.44 kB / 127.66 kB |
+| 后端测试 | `backend/.venv/bin/pytest -q` | 22 passed（既有 httpx 弃用 warning） |
+| 设计检查（Mol*，生产预览） | `inspect.mjs http://127.0.0.1:4173/entry/1CRN?renderer=molstar... --app --allow ...` | 0 FAIL / 0 WARN |
+| 设计检查（默认 3Dmol 工作台） | `./scripts/design-check.sh` | 工作台 0 FAIL / 0 WARN；首页 0 FAIL / 1 已知 `still-page` WARN |
+| 响应式 | 1440 / 768 / 390 截图 | 3D 视图按容器 resize；390/768 上下堆叠正常 |
+| 功能矩阵 | 1CRN × 7 配色 × Cartoon/Stick/Sphere；4HHB Stick | 全部加载成功，0 未捕获异常 / 0 console error |
+| 结构范围 | 1CRN / 4HHB / 6M0J / 1L2Y | 全部可加载；1L2Y 只显示 model 1 |
+| 联动 | 序列点击 A25、URL `chain=A&res=25` 恢复、背景点击清空 | 残基卡、序列、Ramachandran、3D overlay 同步；URL 正确 |
+| hover | 鼠标移动到 CYS 32 | tooltip 显示 `CYS 32 · β-strand` |
+| 链显隐 | 4HHB 取消链 A / 全部恢复 | 显隐正确，无异常；选中残基 overlay 独立于链组件 |
+| 导航 | 返回首页 → 浏览器后退 | 条目、选中、renderer flag 恢复；0 异常 |
+| PNG | `viewportScreenshot.getImageDataUri()` | 返回 `data:image/png;base64,...`，长度 166,782 字符 |
+| 离线 | CDP 收集 Network 请求 | 仅 `127.0.0.1:5173/8000`，无外部 CDN/字体/worker 请求 |
+| 冷启动（无头 Chromium + SwiftShader） | route mount → canvas 就绪 | 1CRN Mol* 约 2.2s（生产预览） vs 3Dmol 约 4.1s；6M0J Mol* 约 5.7s vs 3Dmol 约 6.6s；**4HHB Mol* 约 14.8s vs 3Dmol 约 7.4s** |
+
+### 问题 / 风险
+
+- **4HHB 冷启动明显退化**：Mol* 约 14.8s，3Dmol 约 7.4s（无头 SwiftShader，真实 GPU 会更快，但趋势需用户确认）。主要嫌疑是按链拆组件导致的多套 cartoon 几何；若继续，应改为单 polymer component + 隐藏链时更新 MolScript 表达式，或做真实 GPU profiler。
+- **Vite 兼容层**：当前靠 CommonJS alias 绕开 Mol* 5.13 ESM 命名空间循环依赖；这是 spike 级 workaround，正式采用前应升级/等待上游修复，或改用自定义 Mol* spec + 固定打包方式。
+- **Bundle**：Mol* 懒加载 chunk 约 986 kB gzip，是 3Dmol 的约 6 倍；首页不受影响，工作台冷启动会多下载/解析。
+- **UI 细节**：Mol* 选中 label 需要用 `sizeFactor: 0.8` 才可读；与 3Dmol 的 11px 标签仍有差异。水体被省略，与 3Dmol 行为不完全一致。
+- **真实 GPU 未验证**：无头 Chromium 使用 SwiftShader，4HHB 帧率/启动时间不能直接代表用户机器；需用户在真实浏览器确认。
+- **上传 PDB 未单独验证**：Mol* 路径的 `parseTrajectory('pdb')` 已接入，但本轮端到端只覆盖了 6 个内置 mmCIF 样例；上传流程的 PDB 文本需在 spike 后续补测。
+- **未提交**：分支和改动均未 commit；`skills-lock.json` 的既有本地修改未动。
+- **更正**：上一状态条目写 `exp/render-visual-quality` “未提交、未合并”，但 git 已在 `69df771` 合并入 `dev`；以本次记录为准。
+
+### 下一步
+
+1. 用户在真实浏览器打开 `/entry/1CRN?renderer=molstar`、`/entry/4HHB?renderer=molstar`、`/entry/6M0J?renderer=molstar`，对比观感、4HHB 启动速度、旋转/选中流畅度。
+2. 给出 go/no-go：
+   - **go**：优先优化 4HHB 冷启动（合并组件/减少 representation）、确定 Vite 兼容方案、清理 spike 调试代码，再进入正式实现。
+   - **no-go**：保留 3Dmol，关闭 `spike/molstar-renderer`，后续按 PERF3/PERF4 继续优化。
+
+---
+
+## 2026-11-16 · Claude Code (deepseek-flash[1m]) · 结构渲染画质实验（VIS-A）
+
+### 目标
+
+在 A+B 性能优化已合并进 `dev` 后，探索是否能在不牺牲流畅度的前提下，让 3D 结构更美观、更有体积感和细腻度。先只做可行性实验，再决定默认参数。
+
+### 调研结论
+
+- **3Dmol 2.5.5 不是 Three.js**：它自带 `WebGL.Renderer`、`Scene`、`Camera`、`Light` 和 Lambert 类材质（`3Dmol.js:21718`、`21728`、`32108`）。Three.js 的 `EffectComposer` / `SSAOPass` / PBR / IBL 不能直接接入。
+- 3Dmol 已内置：
+  - 环境光遮蔽（AO）：`ambientOcclusion: { strength, radius }`。
+  - 描边：`outline: { width, color, maxpixels }`。
+  - cartoon 细分：`cartoonQuality`（默认 10）。
+  - `antialias: true` 时默认 2× 超采样 + FXAA。
+- 光照固定为单方向光，材质无 PBR；要获得 Three.js 级别的棚拍光/材质必须替换渲染器（数周级、高风险），当前范围不做。
+
+### 完成内容
+
+- `frontend/src/features/structure/style.ts`
+  - 新增 `VIEWER_OPTIONS`：`cartoonQuality: 16`、`ambientOcclusion: { strength: 1.0, radius: 5 }`、`outline: { width: 0.03, color: UI_COLORS.viewportGrid, maxpixels: 1.2 }`。
+  - 注释说明参数取舍与 3Dmol 内置能力。
+- `frontend/src/features/structure/StructureView.tsx`
+  - `createViewer(container, VIEWER_OPTIONS)`。
+- `docs/ARCHITECTURE.md` 4.4：记录 viewer 级画质选项与“3Dmol 非 Three.js，不要直接接 EffectComposer”的约束。
+
+### 实验与取舍
+
+| 变体 | 结果 |
+|---|---|
+| AO 0.7 / 4 | 差异很弱，stick/sphere 几乎不可见（RMSE 0.2–0.6） |
+| AO 1.5 / 6 | 体积感明显，但 4HHB 缝隙偏暗、颜色被压重 |
+| AO 1.0 / 5 | 深度感与色彩平衡较合适，选为默认 |
+| `cartoonQuality` 16 | 丝带转折略顺滑；首屏 CPU 约 +20–40ms（4HHB/6M0J），选为默认 |
+| `cartoonQuality` 20 | 视觉收益很小，`setNormals` 成本明显上升（6M0J 86.8ms），不采用 |
+| 描边（muted 灰） | 球状表示出现灰色光环，略像插画 |
+| 描边（viewportGrid 暗色） | 只做边缘分离，球状表示无光环；选为默认 |
+| 3Dmol + Three.js 后处理 | 不可直接接入；2D 包一层无深度、与既有 FXAA 重复，不采用 |
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前端 lint | `npm run lint` | 0 error |
+| 前端构建 | `npm run build` | built in 811ms |
+| 运行时交互 | 4HHB / 6M0J：Cartoon→Stick→Sphere、charge/position/bfactor/ss、隐藏链、改选残基 | 全部正常，0 未捕获异常 / 0 console error |
+| 视觉 | 1CRN × Cartoon/Stick/Sphere、4HHB、6M0J | AO 增加缝隙深度；暗色描边分离边缘；选中 accent stick 与 label 仍清晰 |
+| 参数成本 | CDP CPU profiler | `cartoonQuality` 16：4HHB `setNormals` 21.8→43.5ms；6M0J 32.1→53.3ms；质量 20 更高且收益小 |
+
+### 问题 / 风险
+
+- 无头 Chromium + 真实 GPU 的连续旋转帧率测量不稳定（基线与 AO 版本都出现 250ms 级抖动），无法给出可信的 fps 对比；AO/描边对集成显卡的实际帧率需用户在真实浏览器确认。
+- AO 与描边都是全局渲染效果，会增加每帧开销；若低端机器变卡，优先降低 AO strength / 移除 outline / 回退 cartoonQuality。
+- 描边是最主观的一项；默认使用暗色细描边，若认为偏插画，删除 `VIEWER_OPTIONS.outline` 即可。
+- 分支 `exp/render-visual-quality` 未提交、未合并；未新增依赖。
+
+### 下一步
+
+用户在真实浏览器查看 4HHB / 6M0J 的旋转与选中效果；确认后提交并合并回 `dev`。若观感或流畅度不满意，按上表调整参数或移除对应效果。
+
+---
+
+## 2026-11-16 · Claude Code (deepseek-flash[1m]) · 结构渲染 A+B：选中 overlay 与首屏单次构建
+
+### 目标
+
+用户反馈蛋白质结构展示渲染很卡。在保持图形质量的前提下优化，先实施方案 A（选中高亮与主模型解耦）与方案 B（首屏单次几何构建、颜色标尺记忆化）。
+
+### 根因
+
+- 3Dmol 的 `GLModel.setStyle` 只要有任何原子变化就执行 `this.molObj = null`，下一次 `render()` 会重建整个模型的几何并 `clone()`。
+- 原实现每次选中残基都对全模型执行 `setStyle({}, {})`、`setStyle({}, base)`、配体/隐藏链/选中样式，导致 1 个残基的高亮触发 4HHB/6M0J 全结构重建。
+- 首屏先 `addModel → zoomTo → render()`（默认样式），样式 effect 再全量重建一次。
+- B-factor 范围与残基位置归一化在每次选中时重复计算。
+
+### 改动文件
+
+- `frontend/src/features/structure/style.ts`
+  - 新增 `createColorContext` / `createColorFunc` / `baseStyleFor` / `applyBaseStyles` / `selectionOverlayStyle` / `updateSelectionOverlay` / `updateSelectionLabel`。
+  - 删除 `applyStructureStyles`、`StructureStyleOptions`、`selectionKeyString`。
+  - `bFactorRange` 改为单次循环，避免展开大数组。
+- `frontend/src/features/structure/StructureView.tsx`
+  - `ViewerBundle` 持有主模型与空 overlay model。
+  - 基础样式 effect（配色/表示/链显隐）与选中 overlay effect 分离；选中变化不再触碰主模型。
+  - 首次样式应用后才 `render()`；`zoomTo` 只执行一次。
+  - 颜色上下文与 style 用 `useMemo` 记忆化。
+- `frontend/src/stores/app-store.ts`
+  - `setHiddenChains` 内容不变时不产生新数组，避免无意义重渲染。
+- `docs/ARCHITECTURE.md` 4.4：同步主模型/overlay 生命周期与“不重建主模型”约束。
+
+### 关键决策
+
+1. overlay 只画 accent stick：cartoon/sphere 下原选中样式的基础表示与基础样式完全相同，stick 表示下 0.2 的 accent stick 覆盖 0.12 基础 stick，视觉等价。
+2. 选中残基所在链被隐藏时，overlay 附带基础表示，保持原实现“选中残基仍可见”的行为。
+3. 不降低 `antialias`、不减少几何细分、不改变配色或尺寸；未新增依赖。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 前端 lint | `npm run lint` | 0 error |
+| 前端构建 | `npm run build` | built in 793ms（仅既有 3Dmol eval/chunk 警告） |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed, 1 warning（既有 httpx 弃用提示） |
+| 视觉 | Chromium 截图：1CRN × Cartoon/Stick/Sphere、4HHB、6M0J | 选中 accent stick 与 label 正常，颜色/粗细/遮挡与原版一致 |
+| 隐藏链 | 4HHB 隐藏链 A（选中在 A）；1CRN 全部隐藏 | 与 `dev` 基线截图一致；全部隐藏空态正常 |
+| 运行时切换 | Cartoon→Stick→Sphere；charge/position/bfactor/ss；隐藏后再显示链；改为选中另一残基 | 全部正常，0 未捕获异常 |
+| 点击路径 profiler（4HHB，6 次选中） | CDP CPU profiler | `setNormals` 92.3→31.5ms；`createMolObj` 28.1→10.7ms；`clone` 31.2→10.7ms；GC 147→51.8ms |
+| 点击路径 profiler（6M0J，6 次选中） | CDP CPU profiler | `setNormals` 220.3→29.7ms；`createMolObj` 43.5→11.0ms；GC 203.4→33.0ms |
+| 首屏 profiler（6M0J） | CDP CPU profiler | `createMolObj` 15.6→7.6ms；`setNormals` 45.7→24.1ms |
+| 首屏 profiler（4HHB） | CDP CPU profiler | `createMolObj` 15.0→8.5ms |
+| 控制台 | CDP 收集 exception/console error | 0 |
+
+### 问题 / 风险
+
+- 无头 Chromium 使用 SwiftShader，帧耗时（约 700–1000ms/帧）不代表真实 GPU；因此以 CPU profiler 的几何/法线/GC 时间作为优化依据，未把帧时间当验收指标。
+- 首屏 `readyMs` 不能直接对比：基线在第二次全量重设样式前就隐藏 loading，新版在带正确样式首次渲染后才隐藏。
+- 侧栏接触图 / Ramachandran 仍会在每次选中时全量重绘，序列仍会重渲染全部残基；这些属于方案 C/D，本次未做。
+- 分支 `perf/structure-rendering` 未提交、未合并；`skills-lock.json` 的既有本地修改未动。
+
+### 下一步
+
+用户验收 A+B；确认后合并回 `dev`。若仍感觉卡顿，再决定是否实施 C（侧栏静态层/选中层分离）与 D（hover 降频）。
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · T3：修复 Windows 未自动打开浏览器
+
+### 目标
+
+用户报告：Windows 端执行启动脚本后没有自动打开默认浏览器。
+
+### 根因
+
+1. 就绪检测只探测 `http://127.0.0.1:5173/`。Vite 默认绑定 `localhost`，Windows 上可能只解析/绑定到 IPv6 (`::1`)，启动器因此判定前端未就绪，走不到打开浏览器的步骤。
+2. Windows 打开方式使用 `windowsVerbatimArguments` 拼接命令，并以 detached + 隐藏控制台启动 `cmd /c start`；部分 Windows 环境下 `start` 会静默不执行。
+
+### 改动文件
+
+- `scripts/dev.mjs`
+  - 前端就绪同时探测 `localhost`、`127.0.0.1`、`[::1]`，任一可用即可。
+  - Windows 打开改用 Node 正常参数引用：`cmd /c start "" <url>`（空标题作为独立参数），取消 detached。
+  - 增加 `rundll32 url.dll,FileProtocolHandler` 与 `explorer.exe` 两级回退。
+  - 60 秒未探测到前端时不再关闭服务，保留进程并打印手动访问地址。
+
+### 验证
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 语法 | `node --check scripts/dev.mjs` | 通过 |
+| Linux 回归 | `./scripts/dev.sh` | 日志 `FoldLens is ready...` → `Opening ...`；服务持续运行 |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+| 前端构建 | `npm run build` | built in 901ms |
+| 前端 lint | `npm run lint` | 0 error |
+| Windows 实机 | 用户执行 `scripts\dev.cmd` | 确认浏览器自动打开 |
+
+### 问题 / 风险
+
+- Linux 自动打开在无头测试中只会触发 `xdg-open`，实际浏览器行为由用户环境决定。
+- 首次修复自测时误用了已改名的 `waitFor`，导致启动器崩溃并遗留子进程；已修复并清理，后续验证通过。
+- 分支 `fix/windows-auto-open` 已合并入 `dev`，未删除。
+
+### 下一步
+
+推送 `dev` 到远程；等待用户下一条反馈。
+
+---
+
+## 2026-11-06 · Claude Code (deepseek-flash[1m]) · EX2：跨平台运行与启动自动打开浏览器
+
+### 目标
+
+1. 项目在 Windows 与 Linux 上都能运行。
+2. 启动命令执行后自动打开默认浏览器，不再手动输入地址。
+
+### 完成内容
+
+- 新增跨平台 Node 实现（无新增依赖）：
+  - `scripts/dev.mjs`：启动后端与 Vite、等待就绪、自动打开浏览器、退出时清理两个进程树。
+  - `scripts/setup.mjs`：跨平台定位 uv，执行 `uv sync --locked --extra dev --python 3.12` 与 `npm install`，再校验样例。
+  - `scripts/fetch-samples.mjs`：用 Node `fetch` 替代 `curl`，保留已存在文件，支持 `--force`。
+- Unix 包装：`setup.sh` / `dev.sh` / `fetch-samples.sh` 改为 source `node-env.sh` 后调用对应 `.mjs`。
+- Windows 包装：新增 `setup.cmd` / `dev.cmd` / `fetch-samples.cmd`。
+- 平台差异：uvicorn 自动解析 `.venv/bin/uvicorn` 或 `.venv\Scripts\uvicorn.exe`，缺失时退回 `python -m uvicorn`；退出时 Unix 杀进程组、Windows 用 `taskkill /T`。
+- Vite 加 `--strictPort`，避免端口漂移导致自动打开错误地址。
+- 自动打开：Linux `xdg-open`、macOS `open`、Windows `start`；`FOLDLENS_NO_OPEN=1` 或 `--no-open` 关闭。
+- `.gitattributes`：`.sh` 固定 LF，`.cmd` 固定 CRLF。
+- 文档同步：README、`docs/ENVIRONMENT.md`（4.4 Windows）、`AGENTS.md`、`PRODUCT.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`、`docs/DEMO.md`。
+
+### 验证（Linux）
+
+| 验证 | 命令 / 方法 | 结果 |
+|---|---|---|
+| 语法 | `node --check scripts/{dev,setup,fetch-samples}.mjs` | 通过 |
+| 安装 | `./scripts/setup.sh` | 后端/前端安装成功，6 个样例校验通过 |
+| 自动打开 | `./scripts/dev.sh` | 日志 `FoldLens is ready...` → `Opening http://localhost:5173/`；前后端 200 |
+| 关闭自动打开 | `FOLDLENS_NO_OPEN=1 ./scripts/dev.sh` | 输出 `Auto-open disabled`，服务正常 |
+| 清理 | 停止启动器后检查端口/进程 | 5173/8000 释放，无残留 uvicorn/vite |
+| 前端构建 | `npm run build` | built in 874ms |
+| 前端 lint | `npm run lint` | 0 error |
+| 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
+
+### 问题 / 风险
+
+- Windows 路径按 Node 标准 API 与平台分支实现，但本机为 Linux，**未做 Windows 实机验收**；首次在 Windows 使用需补记结果。
+- 5173 或 8000 被占用时启动器会直接失败（`--strictPort` / uvicorn 绑定错误），不会自动换端口；这是为了避免打开错误地址。
+- 分支 `feat/cross-platform-launch` 已合并入 `dev`，未删除。
+
+### 下一步
+
+等待用户反馈；若有 Windows 环境，实机验证 `scripts\setup.cmd` 与 `scripts\dev.cmd`。
 
 ---
 

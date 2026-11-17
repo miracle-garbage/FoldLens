@@ -1,0 +1,5 @@
+# Keep shell scripts LF and Windows launchers CRLF in the working tree.
+* text=auto
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf

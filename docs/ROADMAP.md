@@ -3,8 +3,8 @@
 > 本文是**进度权威**。每次会话结束必须更新勾选状态与“当前焦点”。  
 > 需求范围见 `docs/PROJECT.md`；完成定义见 `docs/CONVENTIONS.md` 第 14 节。
 
-- 更新日期：2026-11-06
-- 当前焦点：**M0–M4 已完成；测试完善与已批准扩展进行中（T1、T2、EX1 已合并入 `dev`，准备 `beta` 发布）**
+- 更新日期：2026-11-17
+- 当前焦点：**M0–M4 已完成；`beta` 已发布；T1、T2、T3、EX1、EX2、结构渲染 A+B、VIS-A 已合并入 `dev`；Mol* 5.13.1 已正式替换 3Dmol，性能与功能验收通过，待提交/合并**
 - 状态标记：`[ ]` 待办 · `[~]` 进行中 · `[x]` 完成 · `[!]` 阻塞
 
 ## 参考工期（课余时间，非硬性）
@@ -184,7 +184,7 @@
 - [x] 视觉打磨：字体、间距、图表、状态页
 - [x] `impeccable polish` / 设计检查三轮以内收敛
 - [x] 可访问性审查：键盘、焦点、对比度、reduced motion
-- [~] 性能核对：首页 chunk、3Dmol 懒加载已核对；4HHB 可交互但未做严格帧率计时
+- [x] 性能核对：首页 chunk、Mol* 懒加载已核对；冷启动已用无头 Chromium 计时；真实 GPU 帧率仍需实机体验
 - [x] 断网演示验证（关闭网络，打开 6 个样例）
 - [x] 上传流程验证（CIF/PDB、非法文件、超限）
 - [x] README 增加截图与最终启动说明
@@ -202,7 +202,7 @@
 
 ## Post-M4 · 已知限制与后续
 
-- 3Dmol 的 `atom.icode` 实际是 `label_alt_id`；插入码结构使用 `chain + resId` 回退映射，v1 样例无插入码。
+- Mol* 使用 `auth_asym_id` / `auth_seq_id` / `pdbx_PDB_ins_code`，与 Biotite 作者编号一致；6 个样例无插入码，新增插入码样例时需专项验证。
 - 没有收录 >3000 残基的真实样例；接触图 2× 降采样与性能提示已实现，但未做真实大结构计时。
 - 4HHB 已完成交互与截图验证，未做严格 fps 计量。
 - 设计检查的 `--allow` 仅覆盖与 `DESIGN.md` 冲突的通用规则；首页仍保留 1 个 `still-page` WARN（动效少），与“禁止装饰性动画”一致。
@@ -223,6 +223,38 @@
   - Cartoon 厚度 0.4 → 0.25；Stick 半径 0.16 → 0.12；Sphere 缩放 0.28 → 0.22；配体 Stick 0.14 → 0.11；选中叠加同步缩小。
   - 尺寸集中为 `style.ts` 顶部常量。
   - 合并：`3280875`（`fix/model-unit-size`）。
+- [x] **T3** Windows 端执行启动脚本后未自动打开浏览器
+  - 就绪检测同时探测 `localhost` / `127.0.0.1` / `[::1]`；Windows 改用非 detached 的 `cmd /c start "" <url>`，并增加 `rundll32` / `explorer` 回退；未就绪时保留服务并打印手动地址。
+  - 合并：`3473fd8`（`fix/windows-auto-open`）。
+  - 用户在 Windows 实机确认自动打开可用。
+
+---
+
+## 性能优化 · 结构渲染（进行中）
+
+工作方式：A+B 与 VIS-A 已合并；Mol* 替换在 `feat/molstar-renderer` 分支完成，未提交、未合并，用户确认后再 commit/merge。
+
+- [x] **PERF1（方案 A）** 选中高亮与主模型解耦（merge `4a0b891`）
+  - 选中残基使用独立 overlay model；点击/方向键选中不再对主模型 `setStyle`，避免 3Dmol 重建整结构几何。
+  - overlay 只画 accent stick；选中残基所在链隐藏时附带基础表示，保持原行为。
+  - 验证：1CRN / 4HHB / 6M0J × Cartoon/Stick/Sphere、隐藏链、运行时切换配色与表示。
+- [x] **PERF2（方案 B）** 首屏单次几何构建与颜色标尺记忆化（merge `4a0b891`）
+  - 移除首次 `render()` 后再全量重设样式的双重建路径；先设置基础样式再首次渲染。
+  - B-factor 范围、残基位置归一化按 `analysis + scheme` 记忆化。
+  - 移除多余的 `setStyle({}, {})`；`setHiddenChains` 在内容不变时不触发更新。
+- [x] **PERF5（画质实验 VIS-A）** 3Dmol 内置画质提升（merge `69df771`）
+  - 新增 `VIEWER_OPTIONS`：`cartoonQuality: 16`、`ambientOcclusion: { strength: 1.0, radius: 5 }`、暗色细描边 `outline: { width: 0.03, maxpixels: 1.2 }`。
+  - 调研结论：3Dmol 自带 WebGL 渲染器，Three.js `EffectComposer`/`SSAOPass` 无法直接接入；3Dmol 内置 AO/outline/quality 是低风险路径。
+  - 对比：1CRN / 4HHB / 6M0J × Cartoon/Stick/Sphere；已合并，用户仍可在实机复核观感与流畅度。
+- [x] **PERF6（方案 B）** Mol* 5.13.1 正式替换 3Dmol（分支 `feat/molstar-renderer`，未提交）
+  - 生产路径只保留 Mol*；`3dmol` 依赖、旧 `StructureView.tsx`/`style.ts` 已删除，`?renderer` flag 已移除。
+  - 架构：`PluginContext` + 自定义 React 外壳；一个 polymer component + 一个 ligand component；链显隐用 Transparency layer（逐链 `Loci.union`，不重建几何）；选中独立 overlay；polymer 首帧后再异步补 ligand。
+  - 功能：7 配色 × 3 表示、选中/hover/序列联动、链显隐（跨 Cartoon/Stick/Sphere）、PNG、URL 恢复、离线、上传 PDB、1L2Y model 1、390/768/1440 全部通过。
+  - 性能（无头 Chromium + SwiftShader，生产预览）：1CRN ≈2.44s、1L2Y ≈2.65s、6M0J ≈4.49s、4HHB ≈5.31s；链显隐约 5–46ms（不重建几何）。
+  - 包体：主包 ≈125KB gzip；`StructureView`/Mol* chunk ≈986KB gzip；3Dmol chunk 已消失。
+  - 已知代价：Vite 需 CommonJS 兼容 alias；Mol* 懒加载 chunk 仍较大；插入码样例未单独验证。
+- [ ] **PERF3（方案 C）** 侧栏接触图 / Ramachandran 静态层与选中层分离（待定）
+- [ ] **PERF4（方案 D）** hover 位置更新 rAF/canvas 降频（待定）
 
 ---
 
@@ -234,6 +266,12 @@
   - 新增 **电荷**：ASP/GLU 红（负电）、LYS/ARG 蓝（正电）、其余中性浅灰；HIS 保持中性。
   - 合并：`a80fb22`（`feat/color-schemes`）。
   - 文档同步：`PRODUCT.md`、`README.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`（Scheme 类型 + 8.12 配色映射表）。
+- [x] **EX2** 跨平台运行与启动自动打开浏览器
+  - Node 实现 `dev.mjs` / `setup.mjs` / `fetch-samples.mjs`；Unix `.sh` 包装与 Windows `.cmd` 包装共用同一逻辑。
+  - `dev.mjs` 等待前端就绪后自动打开默认浏览器；`FOLDLENS_NO_OPEN=1` 或 `--no-open` 可关闭。
+  - Linux 实测通过；Windows 自动打开已由用户实机确认（见 T3）。
+  - 合并：`9876074`（`feat/cross-platform-launch`）。
+  - 文档同步：`README.md`、`docs/ENVIRONMENT.md`（4.4 Windows）、`AGENTS.md`、`PRODUCT.md`、`docs/PROJECT.md`、`docs/ARCHITECTURE.md`、`docs/DEMO.md`。
 
 ---
 
