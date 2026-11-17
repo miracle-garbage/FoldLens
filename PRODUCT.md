@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-React 19 + TypeScript 6.0.3 + Vite 8（前端）；FastAPI + Biotite 2（本地 Python 服务）。
+React 19 + TypeScript 6.0.3 + Vite 8 + Mol* 5.13.1（前端）；FastAPI + Biotite 2（本地 Python 服务）。
 
 ## Users
 
@@ -66,7 +66,7 @@ FoldLens 是一个本地运行的蛋白质结构探索器。用户输入 PDB ID 
 - 接触图基于 Cα 距离，阈值 8 Å。
 - 二级结构使用 Biotite 的 P-SEA 算法，不依赖外部 DSSP 二进制。
 - 结构数据优先读 `data/samples/`，其次读 `.cache/`，最后才请求 RCSB。
-- 前端必须对 3Dmol 做懒加载，避免首页承担约 780KB 的额外体积。
+- 前端必须对 Mol* 做懒加载；工作台渲染 chunk 约 986KB gzip，首页主包约 125KB gzip，首页不得引入 3D 代码。
 
 ### 明确不做（v1）
 
@@ -88,7 +88,7 @@ FoldLens 是一个本地运行的蛋白质结构探索器。用户输入 PDB ID 
 
 - 6 个样例结构及 RCSB 官方缩略图（1CRN、1UBQ、1LYZ、4HHB、6M0J、1L2Y）。
 - 已实测：Biotite 2.0 能解析 1CRN 并计算 SSE、φ/ψ、接触矩阵。
-- 已实测：Vite 8 + React 19 + 3Dmol 2.5.5 生产构建通过。
+- 已实测：Vite 8 + React 19 + Mol* 5.13.1 生产构建通过；6 个样例在 Mol* 下可交互。
 - 已实测：设计检查器可在现有 Chromium 上输出三档截图。
 
 不存在：真实用户访谈、使用数据、合作方背书、许可协议。未来文档不得编造这些内容。

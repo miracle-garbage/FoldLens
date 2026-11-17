@@ -1,9 +1,17 @@
-import type { GLViewer } from '3dmol'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 
-import { StructureView } from '@/features/structure/StructureView'
+import { LoadingState } from '@/components/LoadingState'
+import type { StructureExportHandle } from '@/features/structure/StructureView'
 import {
   buildResidueIndex,
   keyOfResidue,
@@ -26,6 +34,12 @@ import type {
 import { REPRESENTATIONS, SCHEMES } from '@/types/domain'
 import { SidePanel } from './SidePanel'
 import { WorkspaceHeader } from './WorkspaceHeader'
+
+const StructureView = lazy(() =>
+  import('@/features/structure/StructureView').then((module) => ({
+    default: module.StructureView,
+  })),
+)
 
 function isScheme(value: string | null): value is Scheme {
   return value !== null && (SCHEMES as string[]).includes(value)
@@ -55,13 +69,16 @@ export function WorkspaceContent({ analysis }: WorkspaceContentProps) {
   const showToast = useAppStore((state) => state.showToast)
 
   const index = useMemo(() => buildResidueIndex(analysis), [analysis])
-  const viewerRef = useRef<GLViewer | null>(null)
+  const exportHandleRef = useRef<StructureExportHandle | null>(null)
   const appliedEntryRef = useRef<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
 
-  const onViewerReady = useCallback((viewer: GLViewer | null) => {
-    viewerRef.current = viewer
-  }, [])
+  const onExportReady = useCallback(
+    (handle: StructureExportHandle | null) => {
+      exportHandleRef.current = handle
+    },
+    [],
+  )
 
   const handleSelect = useCallback(
     (key: ResidueKey | null) => {
@@ -190,18 +207,18 @@ export function WorkspaceContent({ analysis }: WorkspaceContentProps) {
   const identifier = analysis.meta.pdbId ?? analysis.meta.entryId
 
   const handleExportPng = () => {
-    const viewer = viewerRef.current
-    if (!viewer) {
+    const handle = exportHandleRef.current
+    if (!handle) {
       showToast(t('workspace.export.empty'))
       return
     }
-    try {
-      const dataUri = viewer.pngURI()
-      downloadDataUri(dataUri, `${identifier}-${scheme}.png`)
-      showToast(t('workspace.export.pngSuccess'))
-    } catch {
-      showToast(t('workspace.export.empty'))
-    }
+    void handle
+      .exportPng()
+      .then((dataUri) => {
+        downloadDataUri(dataUri, `${identifier}-${scheme}.png`)
+        showToast(t('workspace.export.pngSuccess'))
+      })
+      .catch(() => showToast(t('workspace.export.empty')))
   }
 
   const handleExportCsv = () => {
@@ -271,17 +288,28 @@ export function WorkspaceContent({ analysis }: WorkspaceContentProps) {
           }`}
         >
           <div className="h-[56vh] min-h-[360px] min-w-0 lg:h-full lg:min-h-0">
-            <StructureView
-              analysis={analysis}
-              index={index}
-              scheme={scheme}
-              representation={representation}
-              selection={selection}
-              hiddenChains={hiddenChains}
-              onSelect={handleSelect}
-              onViewerReady={onViewerReady}
-              onShowAllChains={() => setHiddenChains([])}
-            />
+            <Suspense
+              fallback={
+                <div className="flex h-full w-full items-center justify-center rounded-lg border border-line bg-viewport">
+                  <LoadingState
+                    label={t('workspace.structure.loading')}
+                    dark
+                  />
+                </div>
+              }
+            >
+              <StructureView
+                analysis={analysis}
+                index={index}
+                scheme={scheme}
+                representation={representation}
+                selection={selection}
+                hiddenChains={hiddenChains}
+                onSelect={handleSelect}
+                onExportReady={onExportReady}
+                onShowAllChains={() => setHiddenChains([])}
+              />
+            </Suspense>
           </div>
           <div className="min-h-[560px] min-w-0 lg:h-full lg:min-h-0">
             <SidePanel

@@ -104,7 +104,7 @@
 
 | 编号 | 功能 | 行为 |
 |---|---|---|
-| W-01 | 加载结构 | 从 `/api/entries/{id}/structure` 取 CIF 文本，3Dmol 解析 |
+| W-01 | 加载结构 | 从 `/api/entries/{id}/structure` 取 CIF/PDB 文本，Mol* 解析 |
 | W-02 | 默认样式 | Cartoon；按二级结构着色；深色背景 `#0C0F14` |
 | W-03 | 相机 | 拖拽旋转、滚轮缩放、右键/双指平移；`zoomTo` 初始适配 |
 | W-04 | 自动旋转 | 默认关闭；不在 UI 中提供，避免干扰读数 |
@@ -281,7 +281,7 @@ FastAPI (:8000)
 
 - 前端不直接访问 RCSB；所有外部请求经后端，便于缓存与离线。
 - 后端不保存数据库；缓存是文件。
-- 3Dmol 懒加载，避免拖慢首页。
+- Mol* 懒加载，避免拖慢首页。
 - 完整契约、数据模型、算法见 `docs/ARCHITECTURE.md`。
 
 ---
@@ -307,8 +307,8 @@ FastAPI (:8000)
 
 ### 8.1 性能
 
-- 首页首屏 JS（不含 3Dmol）≤ 250KB gzip。
-- 3Dmol 独立 chunk，进入工作台才加载。
+- 首页首屏 JS（不含 Mol*）≤ 250KB gzip；实测主包约 125KB gzip。
+- Mol* 独立 chunk，进入工作台才加载；实测约 986KB gzip。
 - 残基点击到四处更新 ≤ 100ms（1CRN/1UBQ）。
 - 4HHB 在集成显卡上旋转 ≥ 30fps；不足时允许降到 Stick。
 - 接触图渲染 ≤ 200ms（≤ 2000 残基）。
@@ -399,8 +399,8 @@ FastAPI (:8000)
 
 | 风险 | 影响 | 对策 |
 |---|---|---|
-| 3Dmol 逐残基着色 / 选中回调 API 不熟 | M1 卡住 | M1 第一天做最小原型；必要时逐残基 `addStyle`，把逻辑封装在 `structure/style.ts` |
-| Biotite 残基编号与 3Dmol 的 `resi/icode` 对不上 | 联动错位 | 用 4HHB/6M0J 验证；建立 `(chain, resId, insCode) → atom index` 映射；插入码单独测试 |
+| Mol* 自定义主题 / 交互行为不熟 | 联动或配色错位 | 颜色集中在 `molstar-color-theme.ts`，点击/hover 映射集中在 `molstar-style.ts`；过滤 Mol* 内置 select/focus 行为 |
+| Biotite 作者编号与 Mol* 的 `auth_*` 编号不一致 | 联动错位 | 统一使用 `auth_asym_id` / `auth_seq_id` / `pdbx_PDB_ins_code`；4HHB/6M0J 验证；插入码单独测试 |
 | 大结构（6M0J）渲染卡顿 | 演示体验 | 限制接触图规模；允许降级表示；不在 v1 做 6VXX 级别结构 |
 | 现场断网 | 演示失败 | 6 个样例 + 缩略图本地打包；RCSB 缓存 |
 | Vite 8 / TS 7 较新 | 构建异常 | 已实测通过；锁定 `package-lock.json`；不随意升级 |
@@ -410,7 +410,7 @@ FastAPI (:8000)
 
 **实现后更新**
 
-- 3Dmol 的 `icode` 字段实际映射 `label_alt_id`，不是 mmCIF 插入码；已按“chain + 作者残基号”回退，现有 6 个样例无插入码。
+- 已替换为 Mol* 5.13.1：选中 overlay 独立、链显隐使用 Transparency layer、polymer/ligand 各一个 component；现有 6 个样例无插入码，Mol* 已暴露 `pdbx_PDB_ins_code`。
 - v1 没有收录 >3000 残基的真实样例；接触图的 2× 降采样与性能提示已实现，但只在代码路径上保证，未做真实大结构计时。
 - 4HHB 可交互并已截图验证，但未做严格的帧率计时。
 
