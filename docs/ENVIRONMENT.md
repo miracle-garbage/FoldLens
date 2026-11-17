@@ -114,11 +114,15 @@ cd frontend
 npm install
 ```
 
+> 本机某些 shell 环境会设置 `NODE_ENV=production`，此时 `npm install` 会跳过
+> devDependencies（Vite、TypeScript、ESLint 等），导致 `npm run build` 找不到
+> `vite`。遇到这种情况用 `npm install --include=dev` 恢复。
+
 实测核心依赖：
 
 - react / react-dom 19.3.1
 - react-router-dom 7.18.5
-- 3dmol 2.5.5
+- molstar 5.13.1（3D 渲染引擎；懒加载，生产 chunk 约 986KB gzip）
 - zustand 5.0.16
 - i18next 26.7.1 + react-i18next 17.1.12（react-i18next 17 要求 i18next ≥26.2）
 - tailwindcss 4.3.4 + @tailwindcss/vite 4.3.4
@@ -372,16 +376,17 @@ export CHROME_PATH="$HOME/.cache/ms-playwright/chromium-1169/chrome-linux/chrome
 find ~/.cache/ms-playwright -maxdepth 3 -name chrome -type f
 ```
 
-### Q5: 3Dmol 构建警告 direct eval
+### Q5: Mol* 在 Vite 下初始化失败 / 依赖预打包
 
-3Dmol 2.5.5 内部使用 `eval`，Vite/Rolldown 会警告，但构建成功。  
-不要为了消除警告去改 `node_modules`；必要时在构建配置中降低日志级别。
+Mol* 5.13 的 ESM 构建在 Vite 依赖预打包下会出现 `BuiltInPluginBehaviors` 命名空间未初始化（`Cannot read properties of undefined (reading 'registerDefault')`）。当前 `frontend/vite.config.ts` 把 `molstar/lib/*` 别名到 `molstar/lib/commonjs/*` 规避；升级 Mol* 后需重新验证，若上游修复可移除该别名。
+
+遇到新增 Mol* deep import 后页面长时间白屏，先等待 Vite 完成依赖预打包，再清掉 `frontend/node_modules/.vite` 重启开发服务器。
 
 ### Q6: 首页加载慢 / 包体大
 
-- 确认 3Dmol 是动态 `import()`，不在首页 chunk。
+- 确认 `StructureView` 是动态 `import()`，不在首页 chunk。
 - 确认只打包了拉丁字体；中文使用系统 CJK 字体。
-- 检查 `dist/assets` 中 3Dmol chunk 是否独立。
+- 检查 `dist/assets` 中 `StructureView-*.js` 是否独立。
 
 ### Q7: 端口被占用
 
@@ -407,7 +412,7 @@ ss -ltnp | grep -E '5173|8000'
 |---|---|---|
 | 后端测试 | `backend/.venv/bin/pytest` | 22 passed |
 | 后端 lint | `backend/.venv/bin/ruff check .` | All checks passed |
-| 前端构建 | `npm run build` | 通过；主包 gzip ≈126 KB，3Dmol gzip ≈164 KB |
+| 前端构建 | `npm run build` | 通过；主包 gzip ≈125 KB，StructureView/Mol* chunk gzip ≈986 KB |
 | 前端 lint | `npm run lint` | 0 error |
 | 生产设计检查 | `./scripts/design-check.sh http://127.0.0.1:4173` | 0 FAIL；首页 1 WARN（动效少，已说明） |
 | 浏览器端到端 | 自建 CDP 脚本 | 34/34 通过 |
@@ -422,7 +427,7 @@ ss -ltnp | grep -E '5173|8000'
 | SSE | `annotate_sse` | `COIL=24, HELIX=18, STRAND=4` |
 | 二面角 | `dihedral_backbone` | 46 个残基，φ ∈ [−2.8, 1.9] rad |
 | 接触图 | `CellList.create_adjacency_matrix(8.0)` | 203 对（去对角）/ 114 对（`|i−j|≥3`） |
-| 前端构建 | Vite 8 + React 19 + 3Dmol 2.5.5 | 通过，3Dmol chunk 约 778KB |
+| 前端构建 | Vite 8 + React 19 + Mol* 5.13.1 | 通过，StructureView chunk 约 986KB gzip |
 | Tailwind 4 | `@tailwindcss/vite` | 通过 |
 | 设计检查器 | 缓存 Chromium + `inspect.mjs` | 输出 1440/768/390 截图 |
 | uv | `~/.local/bin/uv --version` | 0.13.7 |

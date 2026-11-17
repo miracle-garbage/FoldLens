@@ -14,7 +14,7 @@
 ┌──────────────────────────────┐
 │  浏览器（React SPA）          │
 │  ├─ 首页 / 工作台             │
-│  ├─ 3Dmol 懒加载              │
+│  ├─ Mol* 懒加载               │
 │  └─ Canvas 图表               │
 └──────────────┬───────────────┘
                │ /api（Vite 代理）
@@ -40,7 +40,7 @@
 
 - 前端不直接请求 RCSB；所有外部请求经后端。
 - 后端不连接数据库；缓存是文件系统。
-- 3Dmol 只在工作台路由加载。
+- Mol* 只在工作台路由加载；首页主包不包含渲染引擎。
 
 ---
 
@@ -165,55 +165,62 @@ interface AppState {
 - 不允许把选中状态存在组件内部。
 - 语言同时写 `localStorage['foldlens.lang']` 并更新 `<html lang>`。
 
-### 4.4 3D 视图生命周期
+### 4.4 3D 视图生命周期（Mol* 5.13）
 
 ```
 mount
-  → 动态 import('3dmol')                    # 懒加载
-  → createViewer(container, { backgroundColor:'#0C0F14' })
-  → fetch CIF 文本 → addModel(text, 'cif')  # 主模型
-  → addModel()                              # 空 overlay 模型，专用于选中高亮
-  → 主模型 setStyle(基础样式)
-  → zoomTo() → render()                     # 首次 render 即带正确样式
-  → setClickable / setHoverable
+  → 动态 import('@/features/structure/StructureView')   # Mol* 独立 chunk，懒加载
+  → new PluginContext(DefaultPluginSpec())               # 过滤轴/焦点/内置 select 行为
+  → plugin.init() → initViewerAsync(canvas, container)
+  → await canvas3dInitialized
+  → disableDefaultCameraAxes() → applyViewerOptions()
+  → 注册 FoldLens ColorTheme
+  → fetch 结构文本 → rawData → parseTrajectory('mmcif' | 'pdb')
+  → createModel(trajectory) → createStructure(model, { name: 'model' })
+  → 建立一个 polymer component + 一个 ligand component（非水 HETATM）
+  → camera.focusLoci(StructureElement.Loci.all(structure))
+  → 添加 polymer representation → 隐藏 loading → 添加 ligand representation
+  → 订阅 click / hover
 update
-  ├─ scheme / representation / hiddenChains:
-  │    → 主模型 setStyle → render()          # 3Dmol 会重建主模型几何
+  ├─ scheme / representation:
+  │    → 更新 polymer representation（同一 tag），ligand 保持 element 色
+  ├─ hiddenChains:
+  │    → 对 polymer + ligand representation 应用/移除 Transparency layer
+  │    → 不重建几何；点击/hover 在应用层过滤隐藏链
   └─ selection:
-       → overlay.removeAtoms(...) → addAtoms(选中残基原子)
-       → overlay.setStyle(accent stick) → 更新 label → render()
-       # 只重建 1 个残基的 overlay，主模型 molObj 保持缓存
+       → 独立 selection component + accent stick + label
+       → 不触碰 polymer/ligand representation
 unmount
-  → 断开 ResizeObserver（detached / 0 尺寸不 resize）
-  → clear()（异常不得逃逸）→ 清空容器
+  → 取消 click/hover 订阅、断开 ResizeObserver
+  → plugin.dispose()（异常不得逃逸）→ 清空容器
 ```
 
 要求：
 
-- `useEffect` / `useLayoutEffect` 的依赖必须覆盖所有影响样式的状态。
-- **选中变化不得对主模型调用 `setStyle`**：3Dmol 的 `GLModel.setStyle` 会把整个模型的 `molObj` 置空，下一次 `render()` 重建全部几何。选中高亮必须走独立的 overlay 模型。
-- overlay 只画 accent stick；若选中残基所在链被隐藏，overlay 需附带基础表示，保持与原行为一致（选中残基可见）。
-- 颜色标尺（B-factor 范围、残基位置归一化）按 `analysis + scheme` 记忆化，不进入点击路径。
-- 生产构建下，首次进入工作台只允许一次主模型几何构建：先设置样式，再首次 `render()`（开发模式的 StrictMode 双挂载除外）。
-- Viewer 级画质选项集中在 `style.ts` 的 `VIEWER_OPTIONS`：`cartoonQuality: 16`、`ambientOcclusion: { strength: 1.0, radius: 5 }`、`outline: { width: 0.03, maxpixels: 1.2 }`。它们只在创建 viewer 时生效。
-- 3Dmol 2.5.5 使用自带的 WebGL 渲染器、Scene、Camera 与材质，**不是 Three.js**；不要尝试把 Three.js `EffectComposer` / `SSAOPass` 直接接入。画质提升使用 3Dmol 内置的 ambient occlusion、outline 与 `cartoonQuality`。
-- 容器尺寸变化用 `ResizeObserver` → `viewer.resize()`，不重置相机。
-- 组件卸载必须清理 WebGL 上下文。
+- 生产路径**只使用 Mol***；不要恢复 3Dmol 双路径或 `?renderer` 参数。
+- 不使用 Mol* 自带 UI；React 外壳负责工具栏、三态、i18n、hover tooltip 与导出。
+- 创建 viewer 时过滤 `camera-axis-helper`、`camera-focus-loci`、`representation-highlight-loci`、`representation-select-loci`、`representation-focus-loci`、`create-structure-focus-representation`；否则会出现重复标记、相机跳动和设计规范不允许的坐标轴组件。
+- **不要按链拆 component**：4HHB 四链会显著拖慢启动。固定一个 polymer component + 一个 ligand component；链显隐用 Transparency layer，不重建几何。
+- 水不创建 representation（避免深色背景上的红点噪声）；结构档案与配体列表仍由后端提供，水不会进入选择。
+- **首帧优先**：先添加 polymer representation 并结束 loading，再异步添加 ligand；ligand 的 ball-and-stick 几何/着色器编译不应阻塞首帧。
+- 选中必须走独立 selection component + label；选中变化不得更新 polymer/ligand representation。
+- 颜色必须走 `molstar-color-theme.ts` 的 `foldlens` 主题，复用 `colors.ts` 的 token；不要使用 Mol* 默认配色。
+- `createStructure` 必须显式传 `{ name: 'model' }`，避免 Mol* 自动应用 biological assembly；1L2Y 的 38 个 NMR model 只显示第一个。
+- Viewer 级画质选项集中在 `molstar-style.ts` 的 `applyViewerOptions`：SSAO 开启、SMAA、outline 开启但 `includeTransparent: false`、bloom 关闭、背景使用 `UI_COLORS.viewport`；相机轴在创建 `Canvas3D` 前关闭。
+- 链隐藏使用 `TransparencyStructureRepresentation3DFromBundle`（value 1）；隐藏链仍在几何中，点击/hover 必须通过 `hiddenChainsRef` 过滤。`setSubtreeVisibility` 只用于 selection component。
+- `Vite` 侧把 `molstar/lib/*` 别名到 `molstar/lib/commonjs/*`，规避 Mol* 5.13 ESM 命名空间循环依赖；这是当前生产兼容层，升级 Mol* 时重新验证。
+- 容器尺寸变化用 `ResizeObserver` → `plugin.handleResize()`，不重置相机；组件卸载必须释放 WebGL 上下文。
+- 不引入 Mol* UI、MVS 扩展、视频导出或其他未批准的运行时依赖。
 
 ### 4.5 残基映射（关键风险点）
 
-后端返回的 `ResidueRecord` 有 `(chainId, resId, insCode)`；3Dmol 的 atom 对象提供 `chain`、`resi`、`resn` 等字段。实现时必须：
+后端返回的 `ResidueRecord` 有 `(chainId, resId, insCode)`；Mol* 的点击/hover 事件提供 `Representation.Loci`。实现必须：
 
-1. 启动时为当前条目建立：
-   ```ts
-   const key = (chain: string, resi: number, icode?: string) =>
-     `${chain}|${resi}|${icode ?? ''}`;
-   const residueByKey = new Map<string, ResidueRecord>();
-   const keyByAtomIndex = new Map<number, string>();
-   ```
-2. 用 `viewer.selectedAtoms({})` 遍历一次，把 `atom.index` 映射到残基 key。
-3. 点击回调里用 `atom.index` 查 `keyByAtomIndex`，而不是直接拼字符串。
-4. 实测 3Dmol 2.5.5 把 mmCIF 的 `label_alt_id` 写进 `atom.icode`，**不是** `pdbx_PDB_ins_code`。因此前端映射先尝试 `chain|resi|insCode`，失败后回退到 `chain|resi`；URL 中的 `ins` 仍保留，6 个样例均无插入码，4HHB/6M0J 已验证。
+1. 用 `StructureElement.Loci.getFirstLocation(loci)` 取首个原子位置；bond loci 用 `Bond.isLocation` 回退到 `aStructure/aUnit/aIndex`。
+2. 用 `StructureProperties.chain.auth_asym_id`、`StructureProperties.residue.auth_seq_id`、`StructureProperties.residue.pdbx_PDB_ins_code` 读取作者编号；**不要用 `label_seq_id`**，Biotite 的 `res_id` 是作者编号。
+3. key 约定为 `chain|resId|insCode`；先查精确 key，失败后回退 `chain|resId`。
+4. 配体按后端 `analysis.meta.ligands` 的 `(chainId, resId, insCode)` 匹配；水不进入选择。
+5. 当前 6 个样例无插入码；Mol* 已暴露 `pdbx_PDB_ins_code`，但新增插入码样例时仍需专门验证。
 
 **验收**：点击 3D 中任意残基，序列中同名残基必须同时高亮；反之亦然。
 
@@ -424,7 +431,7 @@ Base URL：`/api`。所有响应 `application/json; charset=utf-8`，结构文�
 
 - 返回原始 mmCIF 或 PDB 文本，`text/plain; charset=utf-8`。
 - `Content-Disposition: inline; filename="{entryId}.{cif|pdb}"`。
-- 前端 3Dmol 用 `addModel(text, meta.structureFormat)` 解析；**不要根据扩展名或内容猜测格式**。
+- 前端 Mol* 用 `rawData({ data: text })` → `parseTrajectory(data, meta.structureFormat === 'pdb' ? 'pdb' : 'mmcif')` 解析；**不要根据扩展名或内容猜测格式**。
 - 不支持 Range 请求（文件小）。
 
 ### 6.6 `POST /api/uploads`
@@ -707,7 +714,7 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 | `element` | CPK 风格：C / N / O / S / P / H 及常见金属与离子 |
 
 - 全部集中在 `features/structure/colors.ts`；组件与算法文件不得写死颜色。
-- 配体保持 3Dmol Jmol 配色。
+- 配体使用 FoldLens `element` 配色（自定义 `foldlens` ColorTheme），不使用 Mol* 默认 scheme。
 - `position` 按链归一化：多链结构中每条链各自从 N 端开始渐变，避免后段链全部落在红色端。
 - HIS 在 `charge` 中不标为带电：其质子化状态依赖环境，标成带电会过度解读结构数据。
 
@@ -731,8 +738,8 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
   - 分析结果缓存为 JSON，二次请求直接读。
   - RCSB 拉取用同步 HTTPX，超时 15s、重试 1 次；网络 I/O 集中在 `services/rcsb.py`。
 - 前端：
-  - 3Dmol 动态 `import()`；生产构建为独立 chunk。
-  - 首页不引入任何 3D 代码。实测主包 gzip ≈126 KB，3Dmol chunk gzip ≈164 KB。
+  - Mol* 通过动态 `import()` 懒加载；生产构建为独立 chunk。
+  - 首页不引入任何 3D 代码。实测主包 gzip ≈125 KB，StructureView/Mol* chunk gzip ≈986 KB。
   - Canvas 图表按需重绘；接触图只遍历接触对，不逐格填充。
   - `ResizeObserver` 防抖 100ms。
   - 大结构（>3000 残基）接触图 2× 降采样，并在工作台显示性能提示。
@@ -744,7 +751,7 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 - 绑定 `127.0.0.1`。
 - `entryId` 白名单正则；缩略图 ID 同样校验。
 - 上传：大小、扩展名、内容首部三重校验；不把原文件名拼进路径。
-- 不执行用户提供的任何脚本；3Dmol 只解析结构数据。
+- 不执行用户提供的任何脚本；Mol* 只解析结构数据，且运行时不请求外部 CDN/字体/worker。
 - CORS 只允许本地前端来源。
 - 错误响应不包含文件路径、堆栈、环境变量。
 - 依赖锁定：`package-lock.json`、`uv.lock` 入库。
@@ -765,7 +772,7 @@ matrix = struc.CellList(ca, cell_size=8.0).create_adjacency_matrix(8.0)
 
 | 风险 | 说明 | 缓解 |
 |---|---|---|
-| 3Dmol 残基标识 | 实测 `atom.icode` 是 `label_alt_id`，不是插入码；Biotite 使用作者编号 | 已用 `chain + 作者残基号` 回退映射；4HHB/6M0J 验证通过；插入码样例仍属已知限制 |
+| Mol* 残基标识 | 使用 `auth_asym_id` / `auth_seq_id` / `pdbx_PDB_ins_code`，与 Biotite 作者编号一致 | 4HHB/6M0J 验证通过；6 个样例无插入码，新增插入码样例时仍需专项验证 |
 | 逐残基着色性能 | 大结构逐残基 `addStyle` 可能慢 | 优先用 `colorfunc`；必要时缓存 style 结果 |
 | Biotite API 变化 | 2.0 与旧文档差异大 | 以本机实测为准；关键调用写测试 |
 | NMR ensemble | 只取 model 1 | 在文档与界面注明 |

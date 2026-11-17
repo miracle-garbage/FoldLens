@@ -58,9 +58,9 @@ FoldLens 是一个面向生物信息学初学者的结构探索工具。它不�
 
 | 层 | 选型 |
 |---|---|
-| 前端 | React 19 + TypeScript 6.0.3 + Vite 8 + Tailwind 4 |
+| 前端 | React 19 + TypeScript 6.0.3 + Vite 8 + Tailwind 4 + Mol* 5.13.1 |
 | 状态 / 路由 | Zustand 5 + React Router 7 |
-| 3D | 3Dmol.js 2.5（懒加载） |
+| 3D | Mol* 5.13.1（懒加载，工作台 chunk 约 986KB gzip） |
 | i18n | i18next + react-i18next 17 |
 | 后端 | FastAPI 0.162 + Uvicorn 0.54（本地 8000） |
 | 结构计算 | Biotite 2.0 + NumPy 2.5（mmCIF 解析、P-SEA、二面角、接触图） |
